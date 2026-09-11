@@ -1,8 +1,25 @@
-# Nebius sandbox agent example
+# Nebius Token Factory Sandbox Demos
 
 A Python standard-library example of OCI-image execution with VM isolation through Nebius Token Factory Sandboxes. Python 3.10+ recommended; no pip dependencies or Docker daemon needed.
 
-## Run
+## Status
+
+Preliminary demo project. The basic sandbox and tool-calling agent examples have
+been verified live. Framework-based examples are planned; the current agent loop
+uses only the Python standard library.
+
+## Getting started
+
+Clone the repository and enter it:
+
+```sh
+git clone https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos.git
+cd nebius-token-factory-sandbox-demos
+```
+
+You need a Nebius API key and a Project ID with sandbox access. The agent example
+also needs access to a Token Factory model that supports tool calling.
+
 
 ```sh
 python3 demo.py configure
@@ -35,6 +52,7 @@ There is an official SDK: `contree-sdk`, alongside `contree-client` and a CLI. T
 For this small test, direct HTTPS is the most transparent option: POST /images/import, POST /instances, GET /operations/{id}, DELETE /operations/{id}. The generated contree-client is another reasonable option, especially if you need broad API coverage. Reconsider the high-level SDK when its release and docs align.
 
 Sources:
+
 - [Sandbox overview and beta status](https://docs.tokenfactory.nebius.com/sandboxes/overview)
 - [SDK setup](https://docs.tokenfactory.nebius.com/sandboxes/sdk/python_sdk/getting-started)
 - [SDK release](https://pypi.org/project/contree-sdk/)
@@ -53,8 +71,21 @@ python3 agent.py smoke
 
 Local tests cover polling, deadline cancellation, process failure, disposable execution settings and output decoding. They use mocked API responses. Live verification passed on September 11, 2026 using the same Nebius API key for sandboxes and inference, plus the sandbox Project header. The smoke run returned 385. With Qwen/Qwen3-30B-A3B-Instruct-2507, the in-sandbox agent executed Python, printed all 25 primes below 100 and their sum 1060, and returned the matching final answer. The model initially omitted print statements and corrected this on a subsequent tool call. Normal process termination returned signal=-1; the runner accepts that sentinel. Requests that create operations are not automatically retried, avoiding accidental duplicate launches after an ambiguous response. Local timeouts/interrupts attempt cancellation; server execution timeouts provide a separate bound.
 
-Verified reusable image: `755244a0-c2b0-3595-8882-67a72d6faa44` (private to the configured project).
+Reuse the image UUID printed by your own smoke run:
 
 ```sh
-NEBIUS_MODEL=Qwen/Qwen3-30B-A3B-Instruct-2507 python3 demo.py all --image 755244a0-c2b0-3595-8882-67a72d6faa44
+NEBIUS_MODEL=Qwen/Qwen3-30B-A3B-Instruct-2507 python3 demo.py all --image YOUR_IMAGE_UUID
 ```
+
+## Project files
+
+| File | Purpose |
+| --- | --- |
+| `demo.py` | Configuration, image import, sandbox launch, and operation polling |
+| `agent.py` | Smoke task and LLM/tool loop executed inside the sandbox |
+| `test_demo.py` | Local tests with mocked sandbox responses |
+| `.env.example` | Credential and model configuration template |
+
+## License
+
+[MIT](LICENSE), copyright 2026 Daniel Kreuzhofer.
