@@ -1,0 +1,6 @@
+pydantic-ai-slim[openai]==2.43.0
+pydantic==2.13.5
+openai==3.14.0
+reportlab==5.0.1
+Pillow==11.3.0
+pypdfium2==5.13.0

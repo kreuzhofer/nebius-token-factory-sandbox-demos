@@ -12,8 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 
 
-def load_env():
-    path = ROOT / '.env'
+def load_env(path=None):
+    path = Path(path) if path else ROOT / '.env'
     if path.exists():
         for line in path.read_text().splitlines():
             if line.strip() and not line.lstrip().startswith('#'):
@@ -31,12 +31,16 @@ class API:
             self.headers['Project'] = project
 
     def request(self, method, path, body=None):
-        req = urllib.request.Request(self.base+path, method=method, headers=self.headers,
-            data=None if body is None else json.dumps(body).encode())
+        raw = self.transfer(method, path, None if body is None else json.dumps(body).encode())
+        return json.loads(raw) if raw else {}
+
+    def transfer(self, method, path, data=None, content_type='application/json'):
+        """Send bytes without automatic retries, including for ambiguous submissions."""
+        headers = dict(self.headers, **{'Content-Type': content_type})
+        req = urllib.request.Request(self.base+path, method=method, headers=headers, data=data)
         try:
             with urllib.request.urlopen(req, timeout=30) as response:
-                raw = response.read()
-                return json.loads(raw) if raw else {}
+                return response.read()
         except urllib.error.HTTPError as exc:
             # Responses can echo request metadata including runtime credentials.
             raise RuntimeError(f'{method} {path}: HTTP {exc.code}; check credentials, Project header and sandbox access') from None

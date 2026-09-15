@@ -4,9 +4,27 @@ A Python standard-library example of OCI-image execution with VM isolation throu
 
 ## Status
 
-Preliminary demo project. The basic sandbox and tool-calling agent examples have
-been verified live. Framework-based examples are planned; the current agent loop
-uses only the Python standard library.
+The basic smoke/tool examples use the Python standard library. The receipt demo
+adds three Pydantic AI agents in one sandbox: a coordinator, a receipt agent run
+once per input, and a report agent. All inference goes through Token Factory.
+The coordinator returns an automated expense report as JSON and PDF.
+
+## Receipt agents: Python V1
+
+After `python3 demo.py configure`, run:
+
+```sh
+python3 receipts.py --profile minimal --output receipt-output
+# Default 14-input batch, including duplicate and corrupt inputs:
+python3 receipts.py --output receipt-output-demo
+# Or supply your own files:
+python3 receipts.py receipt.jpg other-receipt.pdf --output receipt-output-custom
+```
+
+No local pip install or Docker daemon is needed to launch the workflow. The job
+installs pinned Python dependencies inside its Python 3.12 sandbox. Model IDs and
+endpoints are configurable in `.env`; see [the receipt demo guide](docs/receipt-demo.md)
+for the agent flow, configuration, JSON contract, limits, and verification.
 
 ## Getting started
 
@@ -65,7 +83,7 @@ Sources:
 ## Verification
 
 ```sh
-python3 -m unittest -v
+python3 -m unittest -v test_demo
 python3 agent.py smoke
 ```
 
@@ -80,9 +98,9 @@ NEBIUS_MODEL=Qwen/Qwen3-30B-A3B-Instruct-2507 python3 demo.py all --image YOUR_I
 ## Shared receipt inputs
 
 [The receipt fixture set](fixtures/receipts/README.md) contains 12 distinct
-public/synthetic receipts plus duplicate and damaged-file variants for the planned
+public/synthetic receipts plus duplicate and damaged-file variants for the
 receipt-agent example. It includes provenance, lightweight checks, and a generator
-for the synthetic files. The receipt pipeline itself is not implemented yet.
+for the synthetic files.
 
 List the 14-input demo set without installing additional dependencies:
 
@@ -97,6 +115,10 @@ python3 fixtures/receipts/check.py --list demo
 | `demo.py` | Configuration, image import, sandbox launch, and operation polling |
 | `agent.py` | Smoke task and LLM/tool loop executed inside the sandbox |
 | `test_demo.py` | Local tests with mocked sandbox responses |
+| `receipts.py` | One-command receipt launcher and coordinator result retrieval |
+| `sandbox_jobs.py` | Shared HTTPS job, file upload, and artifact download helpers |
+| `receipt_demo/` | Coordinator, receipt, and report agents plus their ordinary Python tools |
+| `test_receipts.py` | Accounting, document, agent workflow, and transfer checks using fake models |
 | `.env.example` | Credential and model configuration template |
 
 ## License
