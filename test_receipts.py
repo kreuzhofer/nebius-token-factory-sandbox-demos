@@ -15,7 +15,7 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic import ValidationError
 import pypdfium2 as pdfium
 
-from receipt_demo.agents import CoordinatorAgent, ReportAgent
+from receipt_demo.agents import CoordinatorAgent, ReceiptAgent, ReportAgent
 from receipt_demo.documents import prepare
 from receipt_demo.models import Decisions, DuplicateGroup, Receipt
 from receipt_demo.reconcile import reconcile
@@ -30,12 +30,31 @@ def receipt(key, total='10.00', currency='EUR', **kwargs):
                    transaction_type=kwargs.pop('transaction_type', 'purchase'), **kwargs)
 
 
+def arithmetic(basis, *components):
+    return {'basis': basis, 'complete': True, 'components': [
+        {'role': role, 'amount': amount, 'page': 1, 'text': f'{role}: {amount}'}
+        for role, amount in components]}
+
+
 class AccountingTests(unittest.TestCase):
+    def test_extracted_total_is_not_added_to_subtotal_and_tax(self):
+        # The live control receipt returned all three amounts as summable components.
+        parsed = receipt('control', '14.75', 'USD',
+            comparable_components=['13.50', '1.25', '14.75'], components_complete=True,
+            arithmetic={'basis': 'subtotal', 'complete': True, 'components': [
+                {'role': 'subtotal', 'amount': '13.50', 'page': 1, 'text': 'Subtotal 13.50'},
+                {'role': 'tax_added', 'amount': '1.25', 'page': 1, 'text': 'Sales tax 1.25'},
+                {'role': 'total', 'amount': '14.75', 'page': 1, 'text': 'TOTAL USD 14.75'},
+            ]})
+        report = reconcile([parsed], Decisions())
+        self.assertEqual(report.entries[0].outcome, 'included')
+        self.assertEqual(report.totals, {'USD': '14.75'})
+
     def test_signed_refund_discount_included_tax_and_separate_currencies(self):
         report = reconcile([
             receipt('purchase', '22.60', taxes=[{'description': 'included VAT', 'amount': '2.60'}]),
             receipt('refund', '9.50', transaction_type='refund'),
-            receipt('discount', '25.00', components_complete=True, comparable_components=['30', '-5']),
+            receipt('discount', '25.00', arithmetic=arithmetic('subtotal', ('subtotal', '30'), ('discount', '-5'))),
             receipt('usd', '14.75', 'USD'),
         ], Decisions())
         self.assertEqual(report.totals, {'EUR': '38.10', 'USD': '14.75'})
@@ -44,12 +63,24 @@ class AccountingTests(unittest.TestCase):
         report = reconcile([
             receipt('total', None), receipt('currency', currency=None),
             receipt('direction', transaction_type=None),
-            receipt('contradiction', '25', components_complete=True, comparable_components=['12', '8']),
+            receipt('contradiction', '25', arithmetic=arithmetic('items', ('item', '12'), ('item', '8'), ('total', '25'))),
             receipt('secondary', merchant=None, issues=['Unknown merchant']),
         ], Decisions())
         self.assertEqual([e.outcome for e in report.entries], ['flagged'] * 4 + ['included'])
         self.assertEqual(report.totals, {'EUR': '10.00'})
         self.assertIsNone(report.entries[0].signed_amount)
+
+    def test_amount_roles_exclude_included_tax_tender_change_and_carry_forward(self):
+        report = reconcile([
+            receipt('multi', '30', arithmetic=arithmetic('items', ('item', '12'), ('item', '8'),
+                ('carry_forward', '20'), ('carry_forward', '20'), ('item', '6'), ('item', '4'), ('total', '30'))),
+            receipt('tax', '22.60', arithmetic=arithmetic('items', ('item', '10.70'), ('item', '11.90'),
+                ('tax_included', '0.70'), ('tax_included', '1.90'), ('total', '22.60'))),
+            receipt('cash', '34.09', arithmetic=arithmetic('subtotal', ('subtotal', '34.97'),
+                ('discount', '0.88'), ('tender', '50.09'), ('change', '16.00'), ('total', '34.09'))),
+        ], Decisions())
+        self.assertEqual([e.outcome for e in report.entries], ['included'] * 3)
+        self.assertEqual(report.totals, {'EUR': '86.69'})
 
     def test_confirmed_bytes_pixels_and_suspected_duplicates(self):
         records = [receipt('a', content_hash='a', pixel_hash='pixels'),
@@ -108,12 +139,52 @@ class DocumentTests(unittest.TestCase):
 
 def tool_model(messages, info):
     name = info.output_tools[0].name
+    if 'currency' in info.output_tools[0].parameters_json_schema.get('properties', {}):
+        return ModelResponse(parts=[ToolCallPart(name, {
+            'merchant': 'Fixture Cafe', 'currency': 'USD', 'transaction_type': 'purchase',
+            'printed_total': '14.75', 'total': '14.75',
+            'arithmetic': arithmetic('subtotal', ('subtotal', '13.50'), ('tax_added', '1.25'), ('total', '14.75')),
+        })])
     return ModelResponse(parts=[ToolCallPart(name, {})])
 
 
 class WorkflowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_duplicated_extracted_page_gets_validation_retry(self):
+        calls = []
+        def vision(messages, info):
+            calls.append(messages)
+            pages = [{'number': 9, 'text': 'TOTAL USD 14.75', 'blocks': []}]
+            if len(calls) == 1:
+                pages = pages * 2
+            return ModelResponse(parts=[TextPart(json.dumps({'pages': pages}))])
+        models = SimpleNamespace(agent=FunctionModel(tool_model), vision=FunctionModel(vision))
+        key, path, credit = inputs_for_run([], 'minimal')[0]
+        with tempfile.TemporaryDirectory() as directory:
+            parsed = await ReceiptAgent(models).run(
+                {'receipt_id': key, 'source': path.name, 'path': str(path), 'credit': credit}, Path(directory))
+            self.assertIsNone(parsed.error)
+            self.assertEqual(len(calls), 2)
+            self.assertEqual([page.number for page in parsed.pages], [1])
+            self.assertEqual(parsed.total, '14.75')
+
+    async def test_interpretation_failure_retains_extracted_page_text(self):
+        def invalid_interpretation(messages, info):
+            return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {'total': 'not money'})])
+        models = SimpleNamespace(agent=FunctionModel(invalid_interpretation),
+            vision=TestModel(custom_output_text=json.dumps({'pages': [
+                {'number': 1, 'text': 'TOTAL USD 14.75', 'blocks': ['TOTAL USD 14.75']},
+            ]})))
+        key, path, credit = inputs_for_run([], 'minimal')[0]
+        source = {'receipt_id': key, 'source': path.name, 'path': str(path), 'credit': credit}
+        with tempfile.TemporaryDirectory() as directory:
+            result = await ReceiptAgent(models).run(source, Path(directory))
+            self.assertTrue(result.error.startswith('Interpretation'))
+            self.assertEqual(result.pages[0].text, 'TOTAL USD 14.75')
+            self.assertEqual(result.receipt_id, key)
+
     async def test_report_agent_tool_applies_semantic_monetary_flag(self):
         def flag_model(messages, info):
+            self.assertEqual(info.output_tools[0].name, 'generate_report')
             return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {
                 'monetary_flags': [{'receipt_id': 'a', 'reason': 'Extracted amount is tender, not payable total'}],
             })])

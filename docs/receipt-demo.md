@@ -54,7 +54,10 @@ sequenceDiagram
     loop Each input, sequentially
         C->>R: Source file and input identity
         R->>R: Render PDF/image pages
-        R->>T: Images and structured extraction prompt
+        R->>T: Transcribe source images
+        T-->>R: Printed page text and reading-order blocks
+        R->>T: Interpret printed values and classify amount roles
+        T-->>R: Receipt fields, evidence, and labelled arithmetic components
         R-->>C: Receipt record or document error
     end
     C->>P: All receipt outcomes and original pages
@@ -81,7 +84,7 @@ the coordinator responsible for returning the result.
 | `CONTREE_PROJECT` | Sandbox Project header |
 | `CONTREE_BASE_URL` | Sandbox API; existing demo default |
 | `CONTREE_IMAGE` | Optional existing image with `/usr/local/bin/python3` and pip |
-| `NEBIUS_AGENT_MODEL` | `Qwen/Qwen3-30B-A3B-Instruct-2507` for coordinator/report tool calls |
+| `NEBIUS_AGENT_MODEL` | `Qwen/Qwen3-30B-A3B-Instruct-2507` for receipt interpretation and coordinator/report tool calls |
 | `NEBIUS_VISION_MODEL` | `openbmb/MiniCPM-V-4_5` for image extraction |
 | `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1` |
 | `NEBIUS_VISION_BASE_URL` | Falls back to `NEBIUS_BASE_URL`; can select a regional endpoint |
@@ -92,6 +95,16 @@ Factory Chat Completions. The extraction model uses JSON-object mode with a
 schema prompt and local Pydantic validation; it does not need tool calling.
 Coordinator/report models need tool calling. Changing models requires compatible
 capabilities and access on the selected endpoint.
+
+Each receipt agent makes two bounded inference steps: the vision model transcribes
+the pages, then the agent model interprets that text. The second call identifies
+the payable total and distinguishes items/subtotals, discounts, added or included
+tax, tender, change, carry-forward, and conversion amounts. This is internal to the
+same receipt-agent implementation, not a fourth agent or a human review stage.
+The original extracted page text remains in the result JSON. Interpretation errors
+preserve that text when available. The supplied images determine page count and
+order; an extraction that duplicates or omits pages gets the bounded validation
+retry, and source page numbers are assigned by code.
 
 The inference key goes only into the sandbox execution environment, is removed
 from the agent process environment when constructing clients, and is excluded
@@ -115,12 +128,18 @@ originals so the report remains usable after remote storage expires.
 - `duplicate`: confirmed duplicate, with `duplicate_of`; retain its source appendix.
 - `error`: the source cannot be rendered or extraction attempts are exhausted.
 
-Python applies decimal arithmetic, negative refunds, and checks only explicitly
-comparable printed components. It never adds already-included tax or performs FX
-conversion. Byte/pixel hashes detect exact and re-encoded duplicates from actual
-inputs; semantic duplicate candidates come from the report agent. Fixture recipes,
-expected values, and source-group labels never become agent evidence. Attribution
-is passed only to report rendering.
+When the report tool runs, Python checks a complete classified equation using one
+basis: line items or a single subtotal, plus applicable discounts, added tax and
+fees. Final totals, included tax, tender, change, carry-forward, and conversion
+amounts are never addends. An incomplete equation does not create a false mismatch;
+unknown critical expense fields still cause exclusion. Python applies decimal
+arithmetic and signed refunds, with no FX conversion. Byte/pixel hashes detect
+exact and re-encoded duplicates from actual inputs; semantic duplicate candidates
+come from the report agent. Its instructions require positive shared-transaction
+evidence for duplicate candidates and a concrete monetary conflict for additional
+flags; similar layouts or missing item details alone are insufficient. Fixture
+recipes, expected values, and source-group labels never become agent evidence.
+Attribution is passed only to report rendering.
 
 The PDF starts with totals, counts, a row per input, and appendix page references.
 Each appendix contains extracted summaries and original pages in order; long
@@ -134,9 +153,11 @@ The launcher accepts up to 30 inputs / 50 MiB; each PDF has at most eight pages 
 each rendered page at most 25 million pixels. The default job timeout is 1,800
 seconds, configurable from 300 to 3,600. Dependency setup has a 240-second limit.
 Inference HTTP attempts have a 90-second timeout and one transport retry. The
-coordinator is limited to one model request; each receipt and the report agent
-have at most two model requests, including one output-validation retry. Sandbox
-job submissions are never automatically retried after ambiguous responses.
+coordinator is limited to one model request. Each receipt has up to two extraction
+requests and two interpretation requests (one validation retry per step). The
+report agent has at most two requests. Output-token caps are 6,500 for extraction,
+4,500 for interpretation, and 6,500 for reporting. Sandbox job submissions are
+never automatically retried after ambiguous responses.
 
 Document failures are contained and the batch continues. Shared authentication or
 model-access errors, report failures, and artifact-copy failures produce a failed
@@ -148,27 +169,33 @@ byte counts and SHA-256 before a successful local result is published.
 
 ## Live verification: September 15, 2026
 
-The three-input run completed through Token Factory and returned checksummed JSON
-and PDF after its sandbox process ended. The default 14-input run also completed
-with every input represented and a 21-page PDF, using the two default models.
-Its coordinator operation was `01a0a55d-4d97-70ae-a359-c05f4a67c089` and its retained
-filesystem was `38bb904b-bdc8-4b56-b62d-a665b14c1dfd`. These are verification records,
-not reusable image IDs for another account.
+The corrected three-input run completed through Token Factory and returned
+checksummed JSON and PDF after the sandbox process ended. The control receipt was
+included at USD 14.75, the unreadable total was flagged, and the corrupt PDF was a
+document error. Its coordinator operation was
+`01a0a584-e46f-7106-9374-4935c34b2b00`.
 
-The full run finished `completed_with_flags`: one included refund, ten flagged
-inputs, one duplicate, and two errors. The extractor sometimes grouped totals,
-tender, included tax, or carry-forward amounts as summable components, causing
-conservative exclusion. One extraction exhausted validation retries; the corrupt
-PDF remained a document error. This is a working orchestration demonstration with
-imperfect extraction, not a claim that the resulting expense totals are complete.
-No correction step was required to finish the run.
+The corrected 14-input `demo` run also completed from one launcher command:
+8 included, 4 flagged, 1 duplicate, and 1 corrupt-file error. Every synthetic
+receipt matched its intended outcome, signed amount and currency, including the
+refund, discount, included tax, carry-forward, unreadable total and deliberately
+inconsistent total. The exact copy was counted once. All 13 readable inputs used
+one extraction call and one interpretation call. The coordinator returned both
+artifacts from filesystem `1201f607-808d-47a2-aa6b-9d5f92acfccf`, operation
+`01a0a59e-e394-7113-845a-2a6976550da8`.
 
-The report step was separately checked against saved outcomes while fixing its
-output-token budget, then verified in the fresh full run above. The final duplicate
-safeguard (conflicting extracted fields cannot confirm a semantic match) and
-simplified document-error wording are covered by local tests. The local suite has
-22 passing tests. Rendered PDFs were visually inspected for summary/appendix
-references, original-page order, readable long-receipt sections, and error placeholders.
+Observed totals were CHF 54.50, EUR 102.10 and USD 16.93. Public receipts `r02`
+and `r03` still had interpretation-related arithmetic flags; low-resolution `r01`
+was read as USD 2.18 rather than the source's USD 2.13. These model limitations
+remain visible in the outputs. The run demonstrates automated sandbox execution
+and artifact handoff; it does not establish extraction accuracy for arbitrary
+receipts. No output was manually corrected.
+
+The original false-exclusion bug is covered by a regression test: a printed final
+total must not be summed again with subtotal and tax. The local suite has 26
+passing tests, including included-tax/carry-forward handling, genuine arithmetic
+contradictions, page-count retries, and preservation of extracted text if
+interpretation fails. Tool names are explicit and match the model instructions.
 
 ## Local verification
 

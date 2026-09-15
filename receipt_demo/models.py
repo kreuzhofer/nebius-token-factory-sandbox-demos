@@ -27,7 +27,21 @@ class Detail(BaseModel):
     amount: Money | None = None
 
 
-class ReceiptFields(BaseModel):
+class AmountComponent(BaseModel):
+    role: Literal['item', 'subtotal', 'discount', 'tax_added', 'fee', 'total',
+                  'tax_included', 'tender', 'change', 'carry_forward', 'conversion']
+    amount: Money
+    page: int = Field(ge=1)
+    text: str
+
+
+class Arithmetic(BaseModel):
+    basis: Literal['items', 'subtotal', 'none']
+    complete: bool
+    components: list[AmountComponent] = Field(default_factory=list)
+
+
+class ReceiptValues(BaseModel):
     merchant: str | None = None
     date_text: str | None = None
     transaction_date: str | None = None
@@ -35,14 +49,9 @@ class ReceiptFields(BaseModel):
     transaction_type: Literal['purchase', 'refund'] | None = None
     printed_total: str | None = None
     total: Money | None = None
-    pages: list[Page] = Field(default_factory=list)
     line_items: list[Detail] = Field(default_factory=list)
     taxes: list[Detail] = Field(default_factory=list)
     discounts: list[Detail] = Field(default_factory=list)
-    comparable_components: list[Money] = Field(default_factory=list, description=
-        'Only explicitly printed, comparable signed components that must sum to the final total. '
-        'Include discounts negatively and exclude tax already included. Never carry-forward twice.')
-    components_complete: bool = False
     evidence: list[Evidence] = Field(default_factory=list)
     issues: list[str] = Field(default_factory=list)
     monetary_issues: list[str] = Field(default_factory=list, description=
@@ -56,6 +65,18 @@ class ReceiptFields(BaseModel):
         return value
 
 
+class ExtractedDocument(BaseModel):
+    pages: list[Page] = Field(min_length=1)
+
+
+class ReceiptInterpretation(ReceiptValues):
+    arithmetic: Arithmetic | None = None
+
+
+class ReceiptFields(ReceiptValues):
+    pages: list[Page] = Field(default_factory=list)
+
+
 class Receipt(ReceiptFields):
     schema_version: Literal['1'] = '1'
     receipt_id: str
@@ -65,6 +86,7 @@ class Receipt(ReceiptFields):
     pixel_hash: str | None = None
     rendered_pages: list[str] = Field(default_factory=list)
     error: str | None = None
+    arithmetic: Arithmetic | None = None
 
 
 class DuplicateGroup(BaseModel):

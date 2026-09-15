@@ -27,9 +27,20 @@ def reconcile(receipts, decisions: Decisions):
             elif amount < 0:
                 reasons.append('Negative purchase total; refund direction is unresolved')
             signed = str(amount)
-        if receipt.components_complete and receipt.comparable_components and receipt.total is not None:
-            component_total = sum(map(Decimal, receipt.comparable_components), Decimal('0'))
-            if abs(abs(component_total) - abs(Decimal(receipt.total))) > Decimal('0.01'):
+        arithmetic = receipt.arithmetic
+        if arithmetic and arithmetic.complete and arithmetic.basis != 'none' and receipt.total is not None:
+            base = 'item' if arithmetic.basis == 'items' else 'subtotal'
+            components = [c for c in arithmetic.components if c.role in (base, 'discount', 'tax_added', 'fee')]
+            # A final total, included tax, tender, change, and carry-forward are never addends.
+            bases = [c for c in components if c.role == base]
+            if not bases or (base == 'subtotal' and len(bases) != 1):
+                reasons.append('Arithmetic basis is unresolved')
+            component_total = sum(((-abs(Decimal(c.amount)) if c.role == 'discount' else Decimal(c.amount))
+                                   for c in components), Decimal('0'))
+            expected = Decimal(receipt.total)
+            if receipt.transaction_type == 'refund':
+                component_total, expected = abs(component_total), abs(expected)
+            if bases and abs(component_total - expected) > Decimal('0.01'):
                 reasons.append('Printed components contradict the payable total')
         if receipt.error:
             outcome, reasons = 'error', [receipt.error]
