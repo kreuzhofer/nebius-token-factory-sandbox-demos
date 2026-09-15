@@ -1,0 +1,74 @@
+[
+  {
+    "id": "s01", "file": "s01-en-multipage.pdf", "language": "en",
+    "merchant": "DEMO OFFICE SUPPLIES", "date": "2026-09-01", "currency": "EUR", "type": "purchase",
+    "pages": [
+      [["Paper, 2 packs", "12.00"], ["Pens, 4 boxes", "8.00"], ["Subtotal carried forward", "20.00"], ["Continued on page 2", ""]],
+      [["Brought forward", "20.00"], ["Folders", "6.00"], ["Tape", "4.00"], ["TOTAL EUR", "30.00"], ["Paid by card", ""]]
+    ],
+    "source_components": ["12.00", "8.00", "6.00", "4.00"], "source_total": "30.00",
+    "expected": {"outcome": "included", "signed_total": "30.00", "issues": []},
+    "coverage": ["english", "native_multipage_pdf", "carry_forward"]
+  },
+  {
+    "id": "s02", "file": "s02-de-multipage.pdf", "language": "de",
+    "merchant": "DEMO BUEROBEDARF", "date": "15.09.2026", "currency": "EUR", "type": "purchase",
+    "pages": [
+      [["Druckerpapier", "15,00"], ["Notizbuecher", "10,00"], ["Uebertrag", "25,00"], ["Fortsetzung auf Seite 2", ""]],
+      [["Uebertrag von Seite 1", "25,00"], ["Mappe", "5,00"], ["Briefumschlaege", "4,00"], ["SUMME EUR", "34,00"], ["Bezahlt mit Karte", ""]]
+    ],
+    "source_components": ["15.00", "10.00", "5.00", "4.00"], "source_total": "34.00",
+    "expected": {"outcome": "included", "signed_total": "34.00", "issues": []},
+    "coverage": ["german", "native_multipage_pdf", "decimal_comma", "carry_forward"]
+  },
+  {
+    "id": "s03", "file": "s03-refund.png", "language": "en",
+    "merchant": "DEMO RETURN DESK", "date": "2026-09-03", "currency": "EUR", "type": "refund",
+    "pages": [[["RETURN / REFUND RECEIPT", ""], ["Returned notebook", "9.50"], ["REFUND EUR", "9.50"], ["Returned to original card", ""]]],
+    "source_components": ["9.50"], "source_total": "9.50",
+    "expected": {"outcome": "included", "signed_total": "-9.50", "issues": []},
+    "coverage": ["english", "refund", "positive_printed_refund"]
+  },
+  {
+    "id": "s04", "file": "s04-unreadable-total.png", "language": "en",
+    "merchant": "DEMO LUNCH COUNTER", "date": "2026-09-04", "currency": "EUR", "type": "purchase",
+    "pages": [[["Meal and beverage", "[unreadable]"], ["TOTAL EUR", "[unreadable]"], ["Card payment", ""]]],
+    "source_components": ["42.50"], "source_total": "42.50",
+    "expected": {"outcome": "flagged", "signed_total": null, "issues": ["unreadable_total"]},
+    "coverage": ["english", "unreadable_total"],
+    "note": "Source value is for fixture construction only. It is never drawn in the input image and cannot be recovered by adding visible lines."
+  },
+  {
+    "id": "s05", "file": "s05-inconsistent-total.jpg", "language": "en",
+    "merchant": "DEMO CORNER SHOP", "date": "2026-09-05", "currency": "EUR", "type": "purchase",
+    "pages": [[["Lunch box", "12.00"], ["Drink pack", "8.00"], ["Tax included; no other charges", ""], ["TOTAL EUR", "25.00"], ["Paid by card", ""]]],
+    "source_components": ["12.00", "8.00"], "source_total": "25.00",
+    "expected": {"outcome": "flagged", "signed_total": "25.00", "issues": ["arithmetic_mismatch"]},
+    "coverage": ["english", "inconsistent_arithmetic"],
+    "note": "Intentional contradiction: two final line amounts sum to 20.00, but printed total is 25.00."
+  },
+  {
+    "id": "s06", "file": "s06-discount.png", "language": "de",
+    "merchant": "DEMO PAPIERLADEN", "date": "06.09.2026", "currency": "EUR", "type": "purchase",
+    "pages": [[["Schreibwaren", "30,00"], ["Rabatt", "-5,00"], ["SUMME EUR", "25,00"], ["Bezahlt mit Karte", ""]]],
+    "source_components": ["30.00", "-5.00"], "source_total": "25.00",
+    "expected": {"outcome": "included", "signed_total": "25.00", "issues": []},
+    "coverage": ["german", "discount", "decimal_comma"]
+  },
+  {
+    "id": "s07", "file": "s07-multiple-tax-rates.jpg", "language": "de",
+    "merchant": "DEMO MARKT", "date": "07.09.2026", "currency": "EUR", "type": "purchase",
+    "pages": [[["Artikel A (inkl. 7% MwSt)", "10,70"], ["Artikel B (inkl. 19% MwSt)", "11,90"], ["SUMME EUR", "22,60"], ["Enthaltene MwSt 7%", "0,70"], ["Enthaltene MwSt 19%", "1,90"], ["Bezahlt mit Karte", ""]]],
+    "source_components": ["10.70", "11.90"], "source_total": "22.60",
+    "expected": {"outcome": "included", "signed_total": "22.60", "included_tax_total": "2.60", "issues": []},
+    "coverage": ["german", "multiple_tax_rates", "tax_included"]
+  },
+  {
+    "id": "s08", "file": "s08-control.png", "language": "en",
+    "merchant": "DEMO CITY SHOP", "date": "2026-09-08", "currency": "USD", "type": "purchase",
+    "pages": [[["Notebook", "8.00"], ["Pen set", "5.50"], ["Subtotal", "13.50"], ["Sales tax", "1.25"], ["TOTAL USD", "14.75"], ["Paid by card", ""]]],
+    "source_components": ["8.00", "5.50", "1.25"], "source_total": "14.75",
+    "expected": {"outcome": "included", "signed_total": "14.75", "issues": []},
+    "coverage": ["english", "control", "usd"]
+  }
+]

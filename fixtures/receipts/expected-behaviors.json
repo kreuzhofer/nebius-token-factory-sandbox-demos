@@ -1,0 +1,81 @@
+{
+  "schema_version": "1",
+  "scope": "Lightweight intended behaviors; no model run or accuracy claim.",
+  "synthetic": {
+    "s01": {
+      "currency": "EUR",
+      "transaction_type": "purchase",
+      "outcome": "included",
+      "signed_total": "30.00",
+      "issues": []
+    },
+    "s02": {
+      "currency": "EUR",
+      "transaction_type": "purchase",
+      "outcome": "included",
+      "signed_total": "34.00",
+      "issues": []
+    },
+    "s03": {
+      "currency": "EUR",
+      "transaction_type": "refund",
+      "outcome": "included",
+      "signed_total": "-9.50",
+      "issues": []
+    },
+    "s04": {
+      "currency": "EUR",
+      "transaction_type": "purchase",
+      "outcome": "flagged",
+      "signed_total": null,
+      "issues": [
+        "unreadable_total"
+      ]
+    },
+    "s05": {
+      "currency": "EUR",
+      "transaction_type": "purchase",
+      "outcome": "flagged",
+      "signed_total": "25.00",
+      "issues": [
+        "arithmetic_mismatch"
+      ]
+    },
+    "s06": {
+      "currency": "EUR",
+      "transaction_type": "purchase",
+      "outcome": "included",
+      "signed_total": "25.00",
+      "issues": []
+    },
+    "s07": {
+      "currency": "EUR",
+      "transaction_type": "purchase",
+      "outcome": "included",
+      "signed_total": "22.60",
+      "included_tax_total": "2.60",
+      "issues": []
+    },
+    "s08": {
+      "currency": "USD",
+      "transaction_type": "purchase",
+      "outcome": "included",
+      "signed_total": "14.75",
+      "issues": []
+    }
+  },
+  "variants": {
+    "v01": "Count once with s08, retaining both source entries.",
+    "v02": "Decoded-pixel duplicate of s08; count this receipt once in the duplicates profile.",
+    "v03": "Exercise orientation handling; no promised model result.",
+    "v04": "Exercise degraded-image handling; no promised model result.",
+    "v05": "Document error; continue processing and include a failure entry.",
+    "v06": "In isolation merchant is null with a reason; known total may still be included."
+  },
+  "public": {
+    "r01": "Do not invent a date outside the cropped evidence.",
+    "r02": "Distinguish the pre-adjustment subtotal from the final payable total.",
+    "r03": "Merchant is visible; the cashier name is masked.",
+    "r04": "CHF is payable; the displayed EUR equivalent is not a second expense."
+  }
+}
