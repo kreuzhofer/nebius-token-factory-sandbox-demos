@@ -1,1 +1,1 @@
-"""Three receipt-workflow agent roles, running together in V1."""
+"""Three receipt-workflow agent roles, orchestrated across sandboxes."""

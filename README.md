@@ -5,18 +5,19 @@ A Python standard-library example of OCI-image execution with VM isolation throu
 ## Status
 
 The basic smoke/tool examples use the Python standard library. The receipt demo
-adds three Pydantic AI agents in one sandbox: a coordinator, a receipt agent run
-once per input, and a report agent. All inference goes through Token Factory.
+adds three Pydantic AI agents: a coordinator, a receipt agent run once per input,
+and a report agent. Receipt agents run concurrently in separate sandboxes, followed
+by a report sandbox. All inference goes through Token Factory.
 The coordinator returns an automated expense report as JSON and PDF.
 
-## Receipt agents: Python V1
+## Receipt agents
 
 After `python3 demo.py configure`, run:
 
 ```sh
 python3 receipts.py --profile minimal --output receipt-output
-# Default 14-input batch, including duplicate and corrupt inputs:
-python3 receipts.py --output receipt-output-demo
+# Default 14-input batch: receipt fan-out followed by a report sandbox:
+python3 receipts.py --concurrency 3 --output receipt-output-demo
 # Or supply your own files:
 python3 receipts.py receipt.jpg other-receipt.pdf --output receipt-output-custom
 ```
@@ -119,6 +120,7 @@ python3 fixtures/receipts/check.py --list demo
 | `sandbox_jobs.py` | Shared HTTPS job, file upload, and artifact download helpers |
 | `receipt_demo/` | Coordinator, receipt, and report agents plus their ordinary Python tools |
 | `test_receipts.py` | Accounting, document, agent workflow, and transfer checks using fake models |
+| `test_orchestration.py` | Bounded fan-out, child failures, cancellation, and report handoff checks |
 | `.env.example` | Credential and model configuration template |
 
 ## License

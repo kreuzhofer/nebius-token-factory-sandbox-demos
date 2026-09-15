@@ -1,4 +1,4 @@
-"""Run the Python receipt agents in one Nebius Sandbox job (standard-library launcher)."""
+"""Run Python receipt agents across orchestrated Nebius Sandboxes."""
 import argparse
 import json
 import os
@@ -6,23 +6,7 @@ from pathlib import Path
 
 from demo import ROOT, load_env
 from sandbox_jobs import SandboxJobs, retrieve_result
-
-
-BOOTSTRAP = '''import os, subprocess, sys
-try:
-    install = subprocess.run(
-        [sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check',
-         '--no-cache-dir', '-r', '/app/receipt_demo/requirements.txt'],
-        env={'PATH': os.defpath}, capture_output=True, timeout=240)
-    if install.returncode:
-        print('Dependency installation failed; check the pinned requirements and package access.', flush=True)
-        sys.exit(1)
-    from receipt_demo.agents import main
-    main()
-except Exception as exc:
-    print('Coordinator bootstrap failed: ' + type(exc).__name__, flush=True)
-    sys.exit(1)
-'''
+from receipt_demo.execution import BOOTSTRAP, INFERENCE_ENV
 
 
 def inputs_for_run(paths, profile):
@@ -53,9 +37,13 @@ def main():
     parser.add_argument('--image', help='Existing Python 3.12 sandbox image')
     parser.add_argument('--retrieve', help='Retry retrieval from a completed coordinator filesystem image, without inference')
     parser.add_argument('--timeout', default=1800, type=int, help='Sandbox seconds, including dependency setup')
+    parser.add_argument('--concurrency', type=int, default=3, help='Maximum concurrent receipt jobs (1–8)')
+    parser.add_argument('--child-timeout', type=int, default=600, help='Seconds per child job, including setup')
     args = parser.parse_args()
     if not 300 <= args.timeout <= 3600:
         parser.error('--timeout must be between 300 and 3600 seconds')
+    if not 1 <= args.concurrency <= 8 or not 300 <= args.child_timeout <= 1800:
+        parser.error('--concurrency must be 1–8 and --child-timeout must be 300–1800 seconds')
     load_env(args.env_file)
     token = os.environ.get('CONTREE_TOKEN') or os.environ.get('NEBIUS_API_KEY')
     if not token:
@@ -83,9 +71,16 @@ def main():
             if path.suffix == '.py' or path.name == 'requirements.txt':
                 files['/app/receipt_demo/' + path.name] = api.upload(path.read_bytes())
         files['/app/inputs.json'] = api.upload(json.dumps(inputs).encode())
-        env = {key: os.environ[key] for key in (
-            'NEBIUS_API_KEY', 'NEBIUS_BASE_URL', 'NEBIUS_VISION_MODEL', 'NEBIUS_AGENT_MODEL',
-            'NEBIUS_VISION_BASE_URL') if os.environ.get(key)}
+        files['/app/workflow.json'] = api.upload(json.dumps({'role': 'coordinator',
+            'image': image, 'concurrency': args.concurrency, 'child_timeout': args.child_timeout}).encode())
+        env = {key: os.environ[key] for key in INFERENCE_ENV if os.environ.get(key)}
+        env['RECEIPT_JOB_TIMEOUT'] = str(args.timeout)
+        for name in ('demo.py', 'sandbox_jobs.py'):
+            files['/app/' + name] = api.upload((ROOT / name).read_bytes())
+        env['CONTREE_TOKEN'] = token
+        for key in ('CONTREE_PROJECT', 'CONTREE_BASE_URL'):
+            if os.environ.get(key):
+                env[key] = os.environ[key]
         operation, image = api.run(image, files, BOOTSTRAP, env, args.timeout)
         (args.output / 'job.json').write_text(json.dumps({'operation_id': operation, 'image': image}, indent=2))
         print(f'Coordinator filesystem: {image}; retrieving artifacts', flush=True)

@@ -1,6 +1,6 @@
 # Receipt agents on Nebius Sandboxes
 
-This example demonstrates hosting agents in a sandbox and using Token Factory for
+This example demonstrates hosting agents in sandboxes and using Token Factory for
 inference. One command produces JSON and a PDF with totals and original receipts.
 Flags, duplicates, and document errors are finished automated outcomes.
 
@@ -12,7 +12,7 @@ that have sandbox access. The receipt workflow itself runs on Python 3.12.
 ```sh
 python3 demo.py configure
 python3 receipts.py --profile minimal --output receipt-output
-python3 receipts.py --profile demo --output receipt-output-demo
+python3 receipts.py --profile demo --concurrency 3 --output receipt-output-demo
 ```
 
 The small `minimal` profile contains a readable receipt, an unreadable total, and
@@ -45,35 +45,65 @@ persistent tag and offers no deletion guarantee. Retrieve artifacts promptly.
 ```mermaid
 sequenceDiagram
     participant L as Local launcher
-    participant C as Coordinator agent (sandbox)
-    participant R as Receipt agent (same sandbox)
-    participant T as Token Factory
-    participant P as Report agent (same sandbox)
-    L->>C: Upload inputs/code and start one job
-    C->>T: Choose process_receipts tool
-    loop Each input, sequentially
-        C->>R: Source file and input identity
-        R->>R: Render PDF/image pages
-        R->>T: Transcribe source images
-        T-->>R: Printed page text and reading-order blocks
-        R->>T: Interpret printed values and classify amount roles
-        T-->>R: Receipt fields, evidence, and labelled arithmetic components
-        R-->>C: Receipt record or document error
+    participant C as Coordinator sandbox
+    participant W as Receipt sandboxes (bounded fan-out)
+    participant R as Report sandbox
+    L->>C: Start coordinator with inputs and configuration
+    C->>C: Enumerate inputs and stage worker files
+    par Receipt jobs, up to concurrency limit
+        C->>W: Start receipt job
+        W->>W: Token Factory extraction + interpretation
+        W-->>C: Structured receipt or document error
     end
-    C->>P: All receipt outcomes and original pages
-    P->>T: Interpret duplicates and monetary contradictions
-    P->>P: Tool performs decimal arithmetic and generates JSON/PDF
-    P-->>C: Report artifacts
-    C->>C: Copy and checksum actual artifacts
-    C-->>L: Final result and retrievable JSON/PDF
+    C->>C: Collect outcomes in input order
+    C->>R: Start report job with outcomes and originals
+    R->>R: Token Factory decisions + accounting/PDF tool
+    R-->>C: Report filesystem and artifact checksums
+    C->>C: Download and verify JSON/PDF
+    C-->>L: Final result, errors, and coordinator-owned artifacts
 ```
 
-There are three agent implementations. Pydantic AI output tools ensure the
-coordinator and report agent cannot merely claim they finished: their ordinary
-Python tools must execute and return actual files. V1 runs receipt agents
-sequentially inside the same job. [V2](https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos/issues/14)
-will move receipt instances and the report agent into separate jobs while keeping
-the coordinator responsible for returning the result.
+For N inputs, a successful run starts N receipt jobs plus one coordinator and
+one report job. There are three agent implementations. The local launcher
+uploads inputs and starts only the coordinator; child submission, waiting,
+collection and report retrieval happen inside that coordinator sandbox.
+
+Use `--concurrency` (default 3, range 1–8) to bound receipt jobs, and
+`--child-timeout` (default 600, range 300–1,800 seconds) to bound each child,
+including dependency installation. `--timeout` bounds the whole coordinator job.
+For a smaller orchestration demonstration:
+
+```sh
+python3 receipts.py --profile minimal --concurrency 2 --output receipt-output-small
+```
+
+Workers receive their original input, code, and inference configuration. The
+coordinator collects structured receipt records, then supplies those records and
+original inputs to the report job. That job renders the originals for the appendix layout. Worker-local image paths are not reused across filesystems.
+Completed child filesystems remain available for immediate retrieval; no persistent
+tags or separate storage service are created.
+
+`job.json` identifies the parent operation and final filesystem. The coordinator's
+`result.json` also contains `jobs`, with each child's role, input ID, operation ID,
+filesystem, and timestamps. Receipt worker start/finish timestamps let you verify
+overlapping execution. Console logs show child submissions, completion, receipt
+collection, report retrieval and the final coordinator result.
+
+Only the coordinator receives the `CONTREE_*` sandbox API configuration. Receipt
+and report jobs receive the inference environment, with environment preservation disabled in
+every job. Dependency installation receives neither credential. Model prompts
+contain receipt evidence rather than orchestration credentials.
+
+A failed or timed-out receipt process becomes an error outcome and other receipts
+continue. Shared API/configuration failures, report failures and artifact checksum
+failures produce a failed coordinator response with known outcomes. The coordinator
+cancels active children on exceptions, its internal deadline, or a handled
+SIGTERM/SIGINT, using the [operation cancellation API](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/operations/cancel-an-operation).
+Its internal deadline reserves 60 seconds before the server timeout for cleanup
+and output. Cancellation requests are best effort: abrupt VM termination cannot
+run Python cleanup, so every child also has its own server timeout. A submission
+whose response is lost is never blindly retried; without a returned operation ID,
+the child's server timeout is the remaining bound.
 
 ## Inference configuration
 
@@ -108,8 +138,9 @@ retry, and source page numbers are assigned by code.
 
 The inference key goes only into the sandbox execution environment, is removed
 from the agent process environment when constructing clients, and is excluded
-from the dependency-install subprocess. Sandbox API credentials are not sent into
-the V1 job. Logs record agent stages, selected models, and job IDs, excluding raw
+from the dependency-install subprocess. Sandbox API configuration is held only by
+the coordinator. Logs record agent stages,
+selected models, and job IDs, excluding raw
 model errors and credentials.
 
 ## Data and automatic outcomes
@@ -169,33 +200,37 @@ byte counts and SHA-256 before a successful local result is published.
 
 ## Live verification: September 15, 2026
 
-The corrected three-input run completed through Token Factory and returned
-checksummed JSON and PDF after the sandbox process ended. The control receipt was
-included at USD 14.75, the unreadable total was flagged, and the corrupt PDF was a
-document error. Its coordinator operation was
-`01a0a584-e46f-7106-9374-4935c34b2b00`.
+The three-input run used concurrency 2 and produced five sandbox jobs:
+coordinator `01a0a5af-3f01-7608-bc21-76fcd15f0c59`, three receipt workers, and report
+job `01a0a5b0-631c-7792-8770-eb3d3b90c684`. Receipt worker timestamps confirmed two
+workers executing concurrently. The workers completed out of input order; the
+coordinator preserved input order and returned USD 14.75 included, an unreadable
+total flagged, and a corrupt-file error. Its final filesystem was
+`06a89e38-f206-4f22-be0b-c433304a371b`; the downloaded four-page PDF was rendered
+and visually checked.
 
-The corrected 14-input `demo` run also completed from one launcher command:
-8 included, 4 flagged, 1 duplicate, and 1 corrupt-file error. Every synthetic
-receipt matched its intended outcome, signed amount and currency, including the
-refund, discount, included tax, carry-forward, unreadable total and deliberately
-inconsistent total. The exact copy was counted once. All 13 readable inputs used
-one extraction call and one interpretation call. The coordinator returned both
-artifacts from filesystem `1201f607-808d-47a2-aa6b-9d5f92acfccf`, operation
-`01a0a59e-e394-7113-845a-2a6976550da8`.
+The full 14-input `demo` run used concurrency 3 and completed all 16 jobs. Worker
+timestamps confirmed a peak of three concurrent receipt workers; the report job
+started after all receipt outcomes were collected. The coordinator returned
+checksummed JSON/PDF with 8 included, 4 flagged, 1 duplicate and 1 corrupt-file
+error. Every synthetic intended outcome, signed amount and currency matched the
+fixture checks. Totals were CHF 54.50, EUR 102.10 and USD 16.93, with public
+receipt limitations: `r02`/`r03` retain interpretation-related arithmetic flags,
+and low-resolution `r01` was read as USD 2.18 rather than USD 2.13. Duplicate `v01` exhausted interpretation
+retries but retained its source fingerprint, allowing exact deduplication against
+`s08`; that failure remains visible in JSON and the appendix. No manual correction
+or rerun of a failed receipt was needed.
 
-Observed totals were CHF 54.50, EUR 102.10 and USD 16.93. Public receipts `r02`
-and `r03` still had interpretation-related arithmetic flags; low-resolution `r01`
-was read as USD 2.18 rather than the source's USD 2.13. These model limitations
-remain visible in the outputs. The run demonstrates automated sandbox execution
-and artifact handoff; it does not establish extraction accuracy for arbitrary
-receipts. No output was manually corrected.
+The full-run coordinator operation was `01a0a5b2-6269-73a0-97bc-bb00043c1898`, with
+final filesystem `9f23d677-f323-4a02-946d-a374ddc061a6`. The separate report operation
+was `01a0a5b6-63a8-743e-9c3e-bf11ab1d0aee`. The downloaded 21-page PDF was rendered
+and visually checked; `result.json` records all child IDs and timing evidence.
 
-The original false-exclusion bug is covered by a regression test: a printed final
-total must not be summed again with subtotal and tax. The local suite has 26
-passing tests, including included-tax/carry-forward handling, genuine arithmetic
-contradictions, page-count retries, and preservation of extracted text if
-interpretation fails. Tool names are explicit and match the model instructions.
+Automated checks cover the concurrency bound,
+out-of-order completion, original transfer, child timeout containment, shared
+failure cancellation, cancellation during submission, local wait deadlines,
+parent cancellation, report failure, checksum failure, no ambiguous-submission
+retry, coordinator artifact ownership, and the default orchestration command.
 
 ## Local verification
 
