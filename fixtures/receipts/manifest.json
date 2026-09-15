@@ -1,0 +1,387 @@
+{
+  "fixture_version": "1",
+  "purpose": "Demo inputs, not benchmark annotations; never send source definitions to extraction agents.",
+  "profiles": {
+    "base": [
+      "r01",
+      "r02",
+      "r03",
+      "r04",
+      "s01",
+      "s02",
+      "s03",
+      "s04",
+      "s05",
+      "s06",
+      "s07",
+      "s08"
+    ],
+    "demo": [
+      "r01",
+      "r02",
+      "r03",
+      "r04",
+      "s01",
+      "s02",
+      "s03",
+      "s04",
+      "s05",
+      "s06",
+      "s07",
+      "s08",
+      "v01",
+      "v05"
+    ],
+    "all": [
+      "r01",
+      "r02",
+      "r03",
+      "r04",
+      "s01",
+      "s02",
+      "s03",
+      "s04",
+      "s05",
+      "s06",
+      "s07",
+      "s08",
+      "v01",
+      "v02",
+      "v03",
+      "v04",
+      "v05",
+      "v06"
+    ],
+    "minimal": [
+      "s08",
+      "s04",
+      "v05"
+    ],
+    "duplicates": [
+      "s08",
+      "v01",
+      "v02"
+    ],
+    "missing_merchant": [
+      "v06"
+    ]
+  },
+  "inputs": [
+    {
+      "input_id": "r01",
+      "source_receipt_id": "r01",
+      "path": "inputs/r01-family-dollar.jpg",
+      "kind": "public",
+      "language": "en",
+      "coverage": [
+        "photograph",
+        "low_resolution"
+      ],
+      "sha256": "23ef0d0031ad5c74e61c1d0fcb7130212e0bbffdeb5650eaaff684747a7ae65f",
+      "bytes": 130950,
+      "page_count": 1,
+      "width": 740,
+      "height": 553,
+      "provenance": "public-sources.json#r01"
+    },
+    {
+      "input_id": "r02",
+      "source_receipt_id": "r02",
+      "path": "inputs/r02-fressnapf.png",
+      "kind": "public",
+      "language": "de",
+      "coverage": [
+        "scan",
+        "vat_adjustment"
+      ],
+      "sha256": "aeb6ef5300821efc0da65057d0817e3135bd8ace52577dc15748d638aae3a249",
+      "bytes": 1860871,
+      "page_count": 1,
+      "width": 1804,
+      "height": 5016,
+      "provenance": "public-sources.json#r02"
+    },
+    {
+      "input_id": "r03",
+      "source_receipt_id": "r03",
+      "path": "inputs/r03-german-retail.jpg",
+      "kind": "public",
+      "language": "de",
+      "coverage": [
+        "scan",
+        "cashier_redacted",
+        "merchant_visible"
+      ],
+      "sha256": "da2ac27b01a2322b12d4c53171bd5c7becbdb33d6ef7896138b3e1697c091cac",
+      "bytes": 933296,
+      "page_count": 1,
+      "width": 952,
+      "height": 2097,
+      "provenance": "public-sources.json#r03"
+    },
+    {
+      "input_id": "r04",
+      "source_receipt_id": "r04",
+      "path": "inputs/r04-swiss-restaurant.jpg",
+      "kind": "public",
+      "language": "de",
+      "coverage": [
+        "photograph",
+        "dual_currency_display"
+      ],
+      "sha256": "333a2682725a09f66dba7b56d175e21550c96887b677afb1a64d0f8425cd526c",
+      "bytes": 962613,
+      "page_count": 1,
+      "width": 2448,
+      "height": 3264,
+      "provenance": "public-sources.json#r04"
+    },
+    {
+      "input_id": "s01",
+      "source_receipt_id": "s01",
+      "path": "inputs/s01-en-multipage.pdf",
+      "kind": "synthetic",
+      "language": "en",
+      "coverage": [
+        "english",
+        "native_multipage_pdf",
+        "carry_forward"
+      ],
+      "sha256": "13e996328fa0e3016d3c500a1c44bb63e1e9ecdd91daa3b52ee8064a30963748",
+      "bytes": 2740,
+      "page_count": 2,
+      "pdf_kind": "native_text",
+      "provenance": "synthetic-sources.json#s01"
+    },
+    {
+      "input_id": "s02",
+      "source_receipt_id": "s02",
+      "path": "inputs/s02-de-multipage.pdf",
+      "kind": "synthetic",
+      "language": "de",
+      "coverage": [
+        "german",
+        "native_multipage_pdf",
+        "decimal_comma",
+        "carry_forward"
+      ],
+      "sha256": "373d3a6265799d9df81061ccb78f127be4f83084f14f1952bd17d82c0efb1df3",
+      "bytes": 2748,
+      "page_count": 2,
+      "pdf_kind": "native_text",
+      "provenance": "synthetic-sources.json#s02"
+    },
+    {
+      "input_id": "s03",
+      "source_receipt_id": "s03",
+      "path": "inputs/s03-refund.png",
+      "kind": "synthetic",
+      "language": "en",
+      "coverage": [
+        "english",
+        "refund",
+        "positive_printed_refund"
+      ],
+      "sha256": "88eefd38a3d2f5bc3aa5b4fce049e1aa7cb857d78fe3b3fdc5ba4536183cc371",
+      "bytes": 54953,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "provenance": "synthetic-sources.json#s03"
+    },
+    {
+      "input_id": "s04",
+      "source_receipt_id": "s04",
+      "path": "inputs/s04-unreadable-total.png",
+      "kind": "synthetic",
+      "language": "en",
+      "coverage": [
+        "english",
+        "unreadable_total"
+      ],
+      "sha256": "c2a4ba6cd660ff3d3c1d643d83e59a352b0a85ce813a67fb0358bfe5c9aaf799",
+      "bytes": 48220,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "provenance": "synthetic-sources.json#s04"
+    },
+    {
+      "input_id": "s05",
+      "source_receipt_id": "s05",
+      "path": "inputs/s05-inconsistent-total.jpg",
+      "kind": "synthetic",
+      "language": "en",
+      "coverage": [
+        "english",
+        "inconsistent_arithmetic"
+      ],
+      "sha256": "3a285d21a048caec3b3a92385f118f3dba831915d87a8412c38f46d260aed910",
+      "bytes": 84384,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "provenance": "synthetic-sources.json#s05"
+    },
+    {
+      "input_id": "s06",
+      "source_receipt_id": "s06",
+      "path": "inputs/s06-discount.png",
+      "kind": "synthetic",
+      "language": "de",
+      "coverage": [
+        "german",
+        "discount",
+        "decimal_comma"
+      ],
+      "sha256": "a5500393e14ba84f50eb9e04f7bda98f1925a7d3875c7fea557b984b25ef3615",
+      "bytes": 52954,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "provenance": "synthetic-sources.json#s06"
+    },
+    {
+      "input_id": "s07",
+      "source_receipt_id": "s07",
+      "path": "inputs/s07-multiple-tax-rates.jpg",
+      "kind": "synthetic",
+      "language": "de",
+      "coverage": [
+        "german",
+        "multiple_tax_rates",
+        "tax_included"
+      ],
+      "sha256": "cf19c9486d6a4c262f20e98fbba90bc3daa24a4ab1fdfae3f182fd9f90eabca4",
+      "bytes": 92954,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "provenance": "synthetic-sources.json#s07"
+    },
+    {
+      "input_id": "s08",
+      "source_receipt_id": "s08",
+      "path": "inputs/s08-control.png",
+      "kind": "synthetic",
+      "language": "en",
+      "coverage": [
+        "english",
+        "control",
+        "usd"
+      ],
+      "sha256": "b001cf0157f42604dac36934e1407af86ff2d89f9b70058df92fdc380f965a37",
+      "bytes": 59912,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "provenance": "synthetic-sources.json#s08"
+    },
+    {
+      "input_id": "v01",
+      "source_receipt_id": "s08",
+      "path": "inputs/v01-control-exact-copy.png",
+      "kind": "variant",
+      "language": "en",
+      "coverage": [
+        "exact_duplicate"
+      ],
+      "sha256": "b001cf0157f42604dac36934e1407af86ff2d89f9b70058df92fdc380f965a37",
+      "bytes": 59912,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "derived_from": "s08",
+      "transformation": "Byte-identical copy of s08.",
+      "deliberately_corrupt": false
+    },
+    {
+      "input_id": "v02",
+      "source_receipt_id": "s08",
+      "path": "inputs/v02-control-reencoded.png",
+      "kind": "variant",
+      "language": "en",
+      "coverage": [
+        "reencoded_duplicate"
+      ],
+      "sha256": "ddaae0aed0b7c771bd9bc971afd589d4b4795c7706b615fad4e20ddef634a872",
+      "bytes": 3485489,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "derived_from": "s08",
+      "transformation": "PNG compression level 0; decoded pixels equal s08.",
+      "deliberately_corrupt": false
+    },
+    {
+      "input_id": "v03",
+      "source_receipt_id": "s08",
+      "path": "inputs/v03-control-rotated.png",
+      "kind": "variant",
+      "language": "en",
+      "coverage": [
+        "rotation"
+      ],
+      "sha256": "3e3f3cf3105539d3895db61197bb1bad3a618c0dff7f56fbf9757e1102b55e1d",
+      "bytes": 73525,
+      "page_count": 1,
+      "width": 1290,
+      "height": 900,
+      "derived_from": "s08",
+      "transformation": "Rotate s08 clockwise by 90 degrees.",
+      "deliberately_corrupt": false
+    },
+    {
+      "input_id": "v04",
+      "source_receipt_id": "s08",
+      "path": "inputs/v04-control-blurred.jpg",
+      "kind": "variant",
+      "language": "en",
+      "coverage": [
+        "blur"
+      ],
+      "sha256": "e2024e80444ee6d1b3bbbb19f0b7994154bc7444b7a6316148d9162ce98f1766",
+      "bytes": 31776,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "derived_from": "s08",
+      "transformation": "Gaussian blur radius 2; JPEG quality 65.",
+      "deliberately_corrupt": false
+    },
+    {
+      "input_id": "v05",
+      "source_receipt_id": "s08",
+      "path": "inputs/v05-control-corrupt.pdf",
+      "kind": "variant",
+      "language": "en",
+      "coverage": [
+        "corrupt_file"
+      ],
+      "sha256": "580be373f5768520246aefeb106cf9af6cdc8a27fa9dcf11a50f7aecb822011c",
+      "bytes": 63,
+      "page_count": null,
+      "derived_from": "s08",
+      "transformation": "Deliberately truncated PDF with no document structure.",
+      "deliberately_corrupt": true
+    },
+    {
+      "input_id": "v06",
+      "source_receipt_id": "s08",
+      "path": "inputs/v06-control-missing-merchant.png",
+      "kind": "variant",
+      "language": "en",
+      "coverage": [
+        "missing_merchant"
+      ],
+      "sha256": "d4c65e5a9bb9cba245e0ee0c4488a4edd105fe67fd5fd4443da6922b80ed08da",
+      "bytes": 54808,
+      "page_count": 1,
+      "width": 900,
+      "height": 1290,
+      "derived_from": "s08",
+      "transformation": "Render s08 with its merchant heading masked; other visible values preserved.",
+      "deliberately_corrupt": false
+    }
+  ]
+}

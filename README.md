@@ -77,6 +77,19 @@ Reuse the image UUID printed by your own smoke run:
 NEBIUS_MODEL=Qwen/Qwen3-30B-A3B-Instruct-2507 python3 demo.py all --image YOUR_IMAGE_UUID
 ```
 
+## Shared receipt inputs
+
+[The receipt fixture set](fixtures/receipts/README.md) contains 12 distinct
+public/synthetic receipts plus duplicate and damaged-file variants for the planned
+receipt-agent example. It includes provenance, lightweight checks, and a generator
+for the synthetic files. The receipt pipeline itself is not implemented yet.
+
+List the 14-input demo set without installing additional dependencies:
+
+```sh
+python3 fixtures/receipts/check.py --list demo
+```
+
 ## Project files
 
 | File | Purpose |
