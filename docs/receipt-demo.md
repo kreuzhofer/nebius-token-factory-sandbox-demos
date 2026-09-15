@@ -13,6 +13,7 @@ that have sandbox access. The receipt workflow itself runs on Python 3.12.
 python3 demo.py configure
 python3 receipts.py --profile minimal --output receipt-output
 python3 receipts.py --profile demo --output receipt-output-demo
+python3 receipts.py --mode v2 --profile demo --concurrency 3 --output receipt-output-v2
 ```
 
 The small `minimal` profile contains a readable receipt, an unreadable total, and
@@ -71,9 +72,75 @@ sequenceDiagram
 There are three agent implementations. Pydantic AI output tools ensure the
 coordinator and report agent cannot merely claim they finished: their ordinary
 Python tools must execute and return actual files. V1 runs receipt agents
-sequentially inside the same job. [V2](https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos/issues/14)
-will move receipt instances and the report agent into separate jobs while keeping
-the coordinator responsible for returning the result.
+sequentially inside the same job. V2 moves receipt instances and the report agent
+into separate jobs while keeping the coordinator responsible for returning the
+result. The default remains `--mode v1`.
+
+### V2: sandbox orchestration
+
+```mermaid
+sequenceDiagram
+    participant L as Local launcher
+    participant C as Coordinator sandbox
+    participant W as Receipt sandboxes (bounded fan-out)
+    participant R as Report sandbox
+    L->>C: Start coordinator with inputs and configuration
+    C->>C: Enumerate inputs and stage worker files
+    par Receipt jobs, up to concurrency limit
+        C->>W: Start receipt job
+        W->>W: Token Factory extraction + interpretation
+        W-->>C: Structured receipt or document error
+    end
+    C->>C: Collect outcomes in input order
+    C->>R: Start report job with outcomes and originals
+    R->>R: Token Factory decisions + accounting/PDF tool
+    R-->>C: Report filesystem and artifact checksums
+    C->>C: Download and verify JSON/PDF
+    C-->>L: Final result, errors, and coordinator-owned artifacts
+```
+
+For N inputs, a successful V2 run starts N receipt jobs plus one coordinator and
+one report job. The same three agent classes run in both modes. The local launcher
+uploads inputs and starts only the coordinator; child submission, waiting,
+collection and report retrieval happen inside that coordinator sandbox.
+
+Use `--concurrency` (default 3, range 1–8) to bound receipt jobs, and
+`--child-timeout` (default 600, range 300–1,800 seconds) to bound each child,
+including dependency installation. `--timeout` bounds the whole coordinator job.
+For a smaller orchestration demonstration:
+
+```sh
+python3 receipts.py --mode v2 --profile minimal --concurrency 2 --output receipt-output-v2-small
+```
+
+Workers receive their original input, code, and inference configuration. The
+coordinator collects structured receipt records, then supplies those records and
+original inputs to the report job. That job renders the originals for the same
+V1 appendix layout. Worker-local image paths are not reused across filesystems.
+Completed child filesystems remain available for immediate retrieval; no persistent
+tags or separate storage service are created.
+
+`job.json` identifies the parent operation and final filesystem. The coordinator's
+`result.json` also contains `jobs`, with each child's role, input ID, operation ID,
+filesystem, and timestamps. Receipt worker start/finish timestamps let you verify
+overlapping execution. Console logs show child submissions, completion, receipt
+collection, report retrieval and the final coordinator result.
+
+Only the coordinator receives the `CONTREE_*` sandbox API configuration. Receipt
+and report jobs receive the inference environment, with environment preservation disabled in
+every job. Dependency installation receives neither credential. Model prompts
+contain receipt evidence rather than orchestration credentials.
+
+A failed or timed-out receipt process becomes an error outcome and other receipts
+continue. Shared API/configuration failures, report failures and artifact checksum
+failures produce a failed coordinator response with known outcomes. The coordinator
+cancels active children on exceptions, its internal deadline, or a handled
+SIGTERM/SIGINT, using the [operation cancellation API](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/operations/cancel-an-operation).
+Its internal deadline reserves 60 seconds before the server timeout for cleanup
+and output. Cancellation requests are best effort: abrupt VM termination cannot
+run Python cleanup, so every child also has its own server timeout. A submission
+whose response is lost is never blindly retried; without a returned operation ID,
+the child's server timeout is the remaining bound.
 
 ## Inference configuration
 
@@ -109,7 +176,8 @@ retry, and source page numbers are assigned by code.
 The inference key goes only into the sandbox execution environment, is removed
 from the agent process environment when constructing clients, and is excluded
 from the dependency-install subprocess. Sandbox API credentials are not sent into
-the V1 job. Logs record agent stages, selected models, and job IDs, excluding raw
+the V1 job; in V2 they are held only by the coordinator. Logs record agent stages,
+selected models, and job IDs, excluding raw
 model errors and credentials.
 
 ## Data and automatic outcomes
@@ -192,10 +260,43 @@ and artifact handoff; it does not establish extraction accuracy for arbitrary
 receipts. No output was manually corrected.
 
 The original false-exclusion bug is covered by a regression test: a printed final
-total must not be summed again with subtotal and tax. The local suite has 26
-passing tests, including included-tax/carry-forward handling, genuine arithmetic
+total must not be summed again with subtotal and tax. The 26 V1 checks include
+included-tax/carry-forward handling, genuine arithmetic
 contradictions, page-count retries, and preservation of extracted text if
 interpretation fails. Tool names are explicit and match the model instructions.
+
+### V2 live verification
+
+The three-input V2 run used concurrency 2 and produced five sandbox jobs:
+coordinator `01a0a5af-3f01-7608-bc21-76fcd15f0c59`, three receipt workers, and report
+job `01a0a5b0-631c-7792-8770-eb3d3b90c684`. Receipt worker timestamps confirmed two
+workers executing concurrently. The workers completed out of input order; the
+coordinator preserved input order and returned USD 14.75 included, an unreadable
+total flagged, and a corrupt-file error. Its final filesystem was
+`06a89e38-f206-4f22-be0b-c433304a371b`; the downloaded four-page PDF was rendered
+and visually checked.
+
+The full 14-input `demo` run used concurrency 3 and completed all 16 jobs. Worker
+timestamps confirmed a peak of three concurrent receipt workers; the report job
+started after all receipt outcomes were collected. The coordinator returned
+checksummed JSON/PDF with 8 included, 4 flagged, 1 duplicate and 1 corrupt-file
+error. Every synthetic intended outcome, signed amount and currency matched the
+fixture checks. Totals were CHF 54.50, EUR 102.10 and USD 16.93, with the same public
+receipt limitations described above. Duplicate `v01` exhausted interpretation
+retries but retained its source fingerprint, allowing exact deduplication against
+`s08`; that failure remains visible in JSON and the appendix. No manual correction
+or rerun of a failed receipt was needed.
+
+The full-run coordinator operation was `01a0a5b2-6269-73a0-97bc-bb00043c1898`, with
+final filesystem `9f23d677-f323-4a02-946d-a374ddc061a6`. The separate report operation
+was `01a0a5b6-63a8-743e-9c3e-bf11ab1d0aee`. The downloaded 21-page PDF was rendered
+and visually checked; `result.json` records all child IDs and timing evidence.
+
+The combined suite has 35 passing tests. V2 checks cover the concurrency bound,
+out-of-order completion, original transfer, child timeout containment, shared
+failure cancellation, cancellation during submission, local wait deadlines,
+parent cancellation, report failure, checksum failure, no ambiguous-submission
+retry, coordinator artifact ownership, and the shared V1 entrypoint.
 
 ## Local verification
 

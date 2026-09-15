@@ -30,7 +30,8 @@ class SandboxJobs(API):
         print(f'Reuse base image with --image {image}', flush=True)
         return image
 
-    def run(self, image, files, script, env, timeout):
+    def submit(self, image, files, script, env, timeout):
+        """Submit once; callers own polling and cancellation after obtaining the ID."""
         operation = self.request('POST', '/instances', {
             'image': image, 'command': '/usr/local/bin/python3', 'args': ['-u', '-'],
             'stdin': {'value': script, 'encoding': 'ascii', 'close': True},
@@ -38,9 +39,15 @@ class SandboxJobs(API):
             'disposable': False, 'networking': {'enabled': True}, 'timeout': timeout,
             'resources_limits': {'max_layer_bytes': 1073741824}, 'truncate_output_at': 1048576,
         })
-        operation_id = operation['uuid']
+        return operation['uuid']
+
+    def run(self, image, files, script, env, timeout):
+        operation_id = self.submit(image, files, script, env, timeout)
         print(f'Coordinator job: {operation_id}', flush=True)
         completed = self.wait(operation_id, timeout + 120)
+        return operation_id, self.result_image(operation_id, completed)
+
+    def result_image(self, operation_id, completed):
         result = completed['metadata']['result']
         for stream in ('stdout', 'stderr'):
             output = decode(result.get(stream) or {})
@@ -48,11 +55,15 @@ class SandboxJobs(API):
                 print(output, end='' if output.endswith('\n') else '\n', flush=True)
         state = result['state']
         if state.get('timed_out') or state.get('signal', -1) not in (None, -1, 0) or state.get('exit_code') != 0:
-            raise RuntimeError(f'Coordinator job {operation_id} failed: {state}')
+            raise ChildJobError(f'Job {operation_id} failed: {state}')
         result_image = completed.get('result_image_uuid')
         if not result_image:
             raise RuntimeError(f'Coordinator job {operation_id} returned no filesystem image')
-        return operation_id, result_image
+        return result_image
+
+
+class ChildJobError(RuntimeError):
+    """A known job terminated unsuccessfully; distinct from shared API failures."""
 
 
 def retrieve_result(api, image, output):

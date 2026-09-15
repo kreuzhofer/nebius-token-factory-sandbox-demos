@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import time
 from pathlib import Path
 
 os.environ.setdefault('PYDANTIC_AI_NO_BANNER', '1')
@@ -199,23 +200,28 @@ class ReportAgent:
 
 
 class CoordinatorAgent:
-    def __init__(self, models, receipt_agent=None, report_agent=None):
+    def __init__(self, models, receipt_agent=None, report_agent=None, execution=None):
         self.model = models.agent
         self.receipt_agent = receipt_agent or ReceiptAgent(models)
         self.report_agent = report_agent or ReportAgent(models)
+        self.execution = execution
 
     async def run(self, sources, work, output):
         receipts, response = [], None
 
         async def process_receipts() -> dict:
-            """Process all inputs sequentially, ask the report agent, and retrieve the final artifacts."""
+            """Process all inputs, ask the report agent, and retrieve the final artifacts."""
             nonlocal response
             if response is not None:
                 return response
-            for source in sources:
-                receipts.append(await self.receipt_agent.run(source, work / 'pages'))
-            artifacts = await self.report_agent.run(receipts, work / 'report')
-            # The coordinator owns retrieval, not the launcher. V2 replaces this copy with child downloads.
+            if self.execution:
+                await self.execution.process(sources, receipts, work)
+                artifacts = await self.execution.report(sources, receipts, work / 'report')
+            else:
+                for source in sources:
+                    receipts.append(await self.receipt_agent.run(source, work / 'pages'))
+                artifacts = await self.report_agent.run(receipts, work / 'report')
+            # The coordinator publishes only artifacts it has actually retrieved.
             refs = {}
             for name in ('report.json', 'report.pdf'):
                 source = artifacts[name]
@@ -239,11 +245,12 @@ class CoordinatorAgent:
                 'That tool enumerates and processes every input, invokes the report agent, and retrieves its artifacts. '
                 'Return the tool result; do not invent results or skip the tool.')
             log('inference.start', agent='coordinator', inputs=len(sources))
-            await agent.run('Process the supplied receipt batch and return its expense report.',
-                            usage_limits=UsageLimits(request_limit=1))
+            remaining = max(1, float(os.environ.get('RECEIPT_DEADLINE', time.monotonic() + 3600)) - time.monotonic())
+            await asyncio.wait_for(agent.run('Process the supplied receipt batch and return its expense report.',
+                            usage_limits=UsageLimits(request_limit=1)), timeout=remaining)
             if response is None:
                 raise RuntimeError('Coordinator did not execute the workflow')
-        except Exception as exc:
+        except (Exception, asyncio.CancelledError) as exc:
             # Preserve known outcomes without letting an infrastructure failure look completed.
             known = reconcile(receipts, Decisions())
             response = {'schema_version': '1', 'status': 'failed',
@@ -251,20 +258,11 @@ class CoordinatorAgent:
                         'totals': known.totals, 'receipts': [r.model_dump() for r in receipts],
                         'artifacts': {}, 'error': f'Coordinator workflow failed ({type(exc).__name__})'}
             log('coordinator.error', error=response['error'])
+        finally:
+            if self.execution:
+                await self.execution.close()
+        if self.execution:
+            response['jobs'] = self.execution.jobs
         (output / 'result.json').write_text(json.dumps(response, ensure_ascii=False, indent=2))
         log('coordinator.done', status=response['status'])
         return response
-
-
-async def run():
-    models = Models()
-    try:
-        sources = json.loads(Path('/app/inputs.json').read_text())
-        log('configuration', agent_model=models.agent_name, vision_model=models.vision_name)
-        return await CoordinatorAgent(models).run(sources, Path('/app/work'), Path('/app/output'))
-    finally:
-        await models.close()
-
-
-def main():
-    asyncio.run(run())
