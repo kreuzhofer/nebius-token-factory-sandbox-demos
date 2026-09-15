@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from pydantic_ai.models.function import FunctionModel
-from pydantic_ai.models.test import TestModel
+from pydantic_ai.messages import ModelResponse, TextPart
 
 from receipt_demo.agents import CoordinatorAgent
 from receipt_demo.models import Decisions, Receipt
@@ -19,7 +19,6 @@ from receipt_demo.orchestration import SandboxExecution
 from receipt_demo.reconcile import reconcile
 from sandbox_jobs import SandboxJobs
 from test_receipts import tool_model
-from receipts import inputs_for_run
 
 ROOT = Path(__file__).parent
 
@@ -101,25 +100,35 @@ class FakeSandbox(SandboxJobs):
 
 
 class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_shared_entrypoint_keeps_v1_running_without_sandbox_api(self):
-        from receipt_demo.execution import run
-        async def close():
-            pass
-        models = SimpleNamespace(agent=FunctionModel(tool_model),
-            vision=TestModel(custom_output_text=json.dumps({'pages': [
-                {'number': 1, 'text': 'TOTAL USD 14.75', 'blocks': []}]})),
-            agent_name='fake', vision_name='fake', close=close)
-        key, path, credit = inputs_for_run([], 'minimal')[0]
+    async def test_coordinator_cannot_succeed_without_executing_tool(self):
+        models = SimpleNamespace(agent=FunctionModel(lambda messages, info: ModelResponse(parts=[TextPart('Done')])))
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / 'workflow.json').write_text(json.dumps({'role': 'coordinator', 'mode': 'v1'}))
-            (root / 'inputs.json').write_text(json.dumps([{'receipt_id': key, 'source': path.name,
-                                                        'path': str(path), 'credit': credit}]))
-            with patch('receipt_demo.agents.Models', return_value=models), patch(
-                    'receipt_demo.orchestration.SandboxExecution', side_effect=AssertionError('V1 used sandbox orchestration')):
-                result = await run(root)
-            self.assertEqual(result['totals'], {'USD': '14.75'})
-            self.assertTrue((root / 'output/report.pdf').read_bytes().startswith(b'%PDF-'))
+            result = await CoordinatorAgent(models, self.execution(FakeSandbox())).run(
+                [], Path(directory), Path(directory) / 'output')
+            self.assertEqual(result['status'], 'failed')
+            self.assertEqual(result['artifacts'], {})
+            self.assertEqual(result['jobs'], [])
+
+    async def test_default_launcher_starts_only_coordinator_with_orchestration_config(self):
+        import receipts
+        api = FakeSandbox()
+        with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', {
+                'NEBIUS_API_KEY': 'inference-key', 'CONTREE_TOKEN': 'sandbox-key', 'CONTREE_PROJECT': 'project'}, clear=True):
+            with patch('sys.argv', ['receipts.py', '--profile', 'minimal', '--output', directory]), patch(
+                    'receipts.load_env'), patch('receipts.SandboxJobs', return_value=api), patch.object(
+                    api, 'python_image', return_value='base'), patch.object(
+                    api, 'run', return_value=('parent', 'parent-image')) as run, patch(
+                    'receipts.retrieve_result', return_value={'status': 'completed'}):
+                receipts.main()
+            run.assert_called_once()
+            image, files, script, env, timeout = run.call_args.args
+            config = api.unpack(files, '/app/workflow.json')
+            self.assertEqual(config['role'], 'coordinator')
+            self.assertEqual(config['concurrency'], 3)
+            self.assertNotIn('mode', config)
+            self.assertIn('/app/sandbox_jobs.py', files)
+            self.assertEqual(env['CONTREE_TOKEN'], 'sandbox-key')
+            self.assertEqual(env['NEBIUS_API_KEY'], 'inference-key')
 
     def execution(self, api):
         return SandboxExecution(api, {'image': 'base', 'concurrency': 2, 'child_timeout': 300},
@@ -130,7 +139,7 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
                     'credit': 'source credit'} for key in ('a', 'b', 'c')]
         execution = self.execution(api)
         models = SimpleNamespace(agent=FunctionModel(tool_model))
-        coordinator = CoordinatorAgent(models, receipt_agent=object(), report_agent=object(), execution=execution)
+        coordinator = CoordinatorAgent(models, execution)
         result = await coordinator.run(sources, Path(directory) / 'work', Path(directory) / 'output')
         return result, execution
 

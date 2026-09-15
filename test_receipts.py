@@ -15,7 +15,7 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic import ValidationError
 import pypdfium2 as pdfium
 
-from receipt_demo.agents import CoordinatorAgent, ReceiptAgent, ReportAgent
+from receipt_demo.agents import ReceiptAgent, ReportAgent
 from receipt_demo.documents import prepare
 from receipt_demo.models import Decisions, DuplicateGroup, Receipt
 from receipt_demo.reconcile import reconcile
@@ -195,19 +195,18 @@ class WorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(report['entries'][0]['outcome'], 'flagged')
             self.assertEqual(report['totals'], {})
 
-    async def test_shared_inference_auth_failure_fails_the_run(self):
+    async def test_shared_inference_auth_failure_is_raised_to_caller(self):
         def broken_model(messages, info):
             raise ModelHTTPError(401, 'vision', {'secret': 'must not be logged'})
         models = SimpleNamespace(agent=FunctionModel(tool_model), vision=FunctionModel(broken_model))
         key, path, credit = inputs_for_run([], 'minimal')[0]
         sources = [{'receipt_id': key, 'source': path.name, 'path': str(path), 'credit': credit}]
         with tempfile.TemporaryDirectory() as directory:
-            result = await CoordinatorAgent(models).run(sources, Path(directory) / 'work', Path(directory) / 'output')
-            self.assertEqual(result['status'], 'failed')
-            self.assertEqual(result['artifacts'], {})
-            self.assertNotIn('must not be logged', json.dumps(result))
+            with self.assertRaisesRegex(RuntimeError, 'Inference configuration failed') as raised:
+                await ReceiptAgent(models).run(sources[0], Path(directory))
+            self.assertNotIn('must not be logged', str(raised.exception))
 
-    async def test_all_three_agents_produce_report_despite_corrupt_input(self):
+    async def test_receipt_outputs_produce_report_despite_corrupt_input(self):
         fields = {'merchant': 'Fixture Cafe', 'date_text': None, 'currency': 'USD',
                   'transaction_type': 'purchase', 'printed_total': '14.75', 'total': '14.75',
                   'pages': [{'number': 1, 'text': 'TOTAL $14.75', 'blocks': ['TOTAL $14.75']}],
@@ -218,12 +217,12 @@ class WorkflowTests(unittest.IsolatedAsyncioTestCase):
                    for key, path, credit in inputs_for_run([], 'minimal') if key != 's04']
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
-            result = await CoordinatorAgent(models).run(sources, temp / 'work', temp / 'output')
+            records = [await ReceiptAgent(models).run(source, temp / 'work') for source in sources]
+            artifacts = await ReportAgent(models).run(records, temp / 'output')
+            result = json.loads(artifacts['report.json'].read_text())
             self.assertEqual(result['status'], 'completed_with_flags')
             self.assertEqual([e['outcome'] for e in result['entries']], ['included', 'error'])
             self.assertEqual(result['totals'], {'USD': '14.75'})
-            for name, ref in result['artifacts'].items():
-                self.assertEqual(hashlib.sha256((temp / 'output' / name).read_bytes()).hexdigest(), ref['sha256'])
             with pdfium.PdfDocument(temp / 'output/report.pdf') as pdf:
                 self.assertGreaterEqual(len(pdf), 3)
                 page = pdf[0]
@@ -235,27 +234,6 @@ class WorkflowTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn('v05-control-corrupt.pdf', summary)
                 self.assertNotIn('p. ?', summary)
 
-    async def test_report_failure_is_coordinator_owned_and_keeps_known_outcomes(self):
-        class FakeReceiptAgent:
-            async def run(self, source, work):
-                return receipt(source['receipt_id'])
-        class BrokenReportAgent:
-            async def run(self, receipts, work):
-                raise OSError('deliberate generation failure')
-        models = SimpleNamespace(agent=FunctionModel(tool_model))
-        with tempfile.TemporaryDirectory() as directory:
-            result = await CoordinatorAgent(models, FakeReceiptAgent(), BrokenReportAgent()).run(
-                [{'receipt_id': 'a'}], Path(directory) / 'work', Path(directory) / 'output')
-            self.assertEqual(result['status'], 'failed')
-            self.assertEqual(len(result['entries']), 1)
-            self.assertEqual(result['artifacts'], {})
-
-    async def test_coordinator_cannot_succeed_without_executing_tool(self):
-        models = SimpleNamespace(agent=FunctionModel(lambda messages, info: ModelResponse(parts=[TextPart('Done')])), vision=TestModel())
-        with tempfile.TemporaryDirectory() as directory:
-            result = await CoordinatorAgent(models).run([], Path(directory), Path(directory) / 'output')
-            self.assertEqual(result['status'], 'failed')
-            self.assertEqual(result['artifacts'], {})
 
 
 class TransferTests(unittest.TestCase):

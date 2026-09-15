@@ -6,20 +6,18 @@ A Python standard-library example of OCI-image execution with VM isolation throu
 
 The basic smoke/tool examples use the Python standard library. The receipt demo
 adds three Pydantic AI agents: a coordinator, a receipt agent run once per input,
-and a report agent. V1 hosts them in one sandbox; V2 runs receipt agents concurrently
-in separate sandboxes, followed by a report sandbox. All inference goes through Token Factory.
+and a report agent. Receipt agents run concurrently in separate sandboxes, followed
+by a report sandbox. All inference goes through Token Factory.
 The coordinator returns an automated expense report as JSON and PDF.
 
-## Receipt agents: Python V1 and V2
+## Receipt agents
 
 After `python3 demo.py configure`, run:
 
 ```sh
 python3 receipts.py --profile minimal --output receipt-output
-# Default 14-input batch, including duplicate and corrupt inputs:
-python3 receipts.py --output receipt-output-demo
-# V2: coordinator fans out receipt sandboxes, then starts the report sandbox:
-python3 receipts.py --mode v2 --concurrency 3 --output receipt-output-v2
+# Default 14-input batch: receipt fan-out followed by a report sandbox:
+python3 receipts.py --concurrency 3 --output receipt-output-demo
 # Or supply your own files:
 python3 receipts.py receipt.jpg other-receipt.pdf --output receipt-output-custom
 ```

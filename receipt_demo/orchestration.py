@@ -45,7 +45,7 @@ class SandboxExecution:
 
     async def job(self, role, files, receipt_id=None):
         files = dict(self.code, **files)
-        files['/app/workflow.json'] = await self.upload_json({'role': role, 'mode': 'v2'})
+        files['/app/workflow.json'] = await self.upload_json({'role': role})
         timeout = self.config['child_timeout']
         # Shield submission: if cancelled during POST, retain its returned ID for cleanup.
         submission = asyncio.create_task(asyncio.to_thread(self.api.submit, self.config['image'], files,

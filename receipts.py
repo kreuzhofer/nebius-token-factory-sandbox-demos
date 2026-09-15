@@ -1,4 +1,4 @@
-"""Run Python receipt agents in one sandbox (V1) or orchestrated sandboxes (V2)."""
+"""Run Python receipt agents across orchestrated Nebius Sandboxes."""
 import argparse
 import json
 import os
@@ -37,9 +37,8 @@ def main():
     parser.add_argument('--image', help='Existing Python 3.12 sandbox image')
     parser.add_argument('--retrieve', help='Retry retrieval from a completed coordinator filesystem image, without inference')
     parser.add_argument('--timeout', default=1800, type=int, help='Sandbox seconds, including dependency setup')
-    parser.add_argument('--mode', choices=('v1', 'v2'), default='v1')
-    parser.add_argument('--concurrency', type=int, default=3, help='Maximum concurrent receipt jobs in V2 (1–8)')
-    parser.add_argument('--child-timeout', type=int, default=600, help='Seconds per V2 child job, including setup')
+    parser.add_argument('--concurrency', type=int, default=3, help='Maximum concurrent receipt jobs (1–8)')
+    parser.add_argument('--child-timeout', type=int, default=600, help='Seconds per child job, including setup')
     args = parser.parse_args()
     if not 300 <= args.timeout <= 3600:
         parser.error('--timeout must be between 300 and 3600 seconds')
@@ -72,17 +71,16 @@ def main():
             if path.suffix == '.py' or path.name == 'requirements.txt':
                 files['/app/receipt_demo/' + path.name] = api.upload(path.read_bytes())
         files['/app/inputs.json'] = api.upload(json.dumps(inputs).encode())
-        files['/app/workflow.json'] = api.upload(json.dumps({'role': 'coordinator', 'mode': args.mode,
+        files['/app/workflow.json'] = api.upload(json.dumps({'role': 'coordinator',
             'image': image, 'concurrency': args.concurrency, 'child_timeout': args.child_timeout}).encode())
         env = {key: os.environ[key] for key in INFERENCE_ENV if os.environ.get(key)}
         env['RECEIPT_JOB_TIMEOUT'] = str(args.timeout)
-        if args.mode == 'v2':
-            for name in ('demo.py', 'sandbox_jobs.py'):
-                files['/app/' + name] = api.upload((ROOT / name).read_bytes())
-            env['CONTREE_TOKEN'] = token
-            for key in ('CONTREE_PROJECT', 'CONTREE_BASE_URL'):
-                if os.environ.get(key):
-                    env[key] = os.environ[key]
+        for name in ('demo.py', 'sandbox_jobs.py'):
+            files['/app/' + name] = api.upload((ROOT / name).read_bytes())
+        env['CONTREE_TOKEN'] = token
+        for key in ('CONTREE_PROJECT', 'CONTREE_BASE_URL'):
+            if os.environ.get(key):
+                env[key] = os.environ[key]
         operation, image = api.run(image, files, BOOTSTRAP, env, args.timeout)
         (args.output / 'job.json').write_text(json.dumps({'operation_id': operation, 'image': image}, indent=2))
         print(f'Coordinator filesystem: {image}; retrieving artifacts', flush=True)

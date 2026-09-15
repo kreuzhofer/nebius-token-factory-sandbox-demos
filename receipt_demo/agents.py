@@ -1,4 +1,4 @@
-"""Coordinator, receipt, and report agents. V1 hosts all three in one sandbox."""
+"""Coordinator, receipt, and report agents hosted in separate sandboxes."""
 from __future__ import annotations
 
 import asyncio
@@ -200,10 +200,8 @@ class ReportAgent:
 
 
 class CoordinatorAgent:
-    def __init__(self, models, receipt_agent=None, report_agent=None, execution=None):
+    def __init__(self, models, execution):
         self.model = models.agent
-        self.receipt_agent = receipt_agent or ReceiptAgent(models)
-        self.report_agent = report_agent or ReportAgent(models)
         self.execution = execution
 
     async def run(self, sources, work, output):
@@ -214,13 +212,8 @@ class CoordinatorAgent:
             nonlocal response
             if response is not None:
                 return response
-            if self.execution:
-                await self.execution.process(sources, receipts, work)
-                artifacts = await self.execution.report(sources, receipts, work / 'report')
-            else:
-                for source in sources:
-                    receipts.append(await self.receipt_agent.run(source, work / 'pages'))
-                artifacts = await self.report_agent.run(receipts, work / 'report')
+            await self.execution.process(sources, receipts, work)
+            artifacts = await self.execution.report(sources, receipts, work / 'report')
             # The coordinator publishes only artifacts it has actually retrieved.
             refs = {}
             for name in ('report.json', 'report.pdf'):
@@ -259,10 +252,8 @@ class CoordinatorAgent:
                         'artifacts': {}, 'error': f'Coordinator workflow failed ({type(exc).__name__})'}
             log('coordinator.error', error=response['error'])
         finally:
-            if self.execution:
-                await self.execution.close()
-        if self.execution:
-            response['jobs'] = self.execution.jobs
+            await self.execution.close()
+        response['jobs'] = self.execution.jobs
         (output / 'result.json').write_text(json.dumps(response, ensure_ascii=False, indent=2))
         log('coordinator.done', status=response['status'])
         return response

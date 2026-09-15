@@ -1,6 +1,6 @@
 # Receipt agents on Nebius Sandboxes
 
-This example demonstrates hosting agents in a sandbox and using Token Factory for
+This example demonstrates hosting agents in sandboxes and using Token Factory for
 inference. One command produces JSON and a PDF with totals and original receipts.
 Flags, duplicates, and document errors are finished automated outcomes.
 
@@ -12,8 +12,7 @@ that have sandbox access. The receipt workflow itself runs on Python 3.12.
 ```sh
 python3 demo.py configure
 python3 receipts.py --profile minimal --output receipt-output
-python3 receipts.py --profile demo --output receipt-output-demo
-python3 receipts.py --mode v2 --profile demo --concurrency 3 --output receipt-output-v2
+python3 receipts.py --profile demo --concurrency 3 --output receipt-output-demo
 ```
 
 The small `minimal` profile contains a readable receipt, an unreadable total, and
@@ -46,41 +45,6 @@ persistent tag and offers no deletion guarantee. Retrieve artifacts promptly.
 ```mermaid
 sequenceDiagram
     participant L as Local launcher
-    participant C as Coordinator agent (sandbox)
-    participant R as Receipt agent (same sandbox)
-    participant T as Token Factory
-    participant P as Report agent (same sandbox)
-    L->>C: Upload inputs/code and start one job
-    C->>T: Choose process_receipts tool
-    loop Each input, sequentially
-        C->>R: Source file and input identity
-        R->>R: Render PDF/image pages
-        R->>T: Transcribe source images
-        T-->>R: Printed page text and reading-order blocks
-        R->>T: Interpret printed values and classify amount roles
-        T-->>R: Receipt fields, evidence, and labelled arithmetic components
-        R-->>C: Receipt record or document error
-    end
-    C->>P: All receipt outcomes and original pages
-    P->>T: Interpret duplicates and monetary contradictions
-    P->>P: Tool performs decimal arithmetic and generates JSON/PDF
-    P-->>C: Report artifacts
-    C->>C: Copy and checksum actual artifacts
-    C-->>L: Final result and retrievable JSON/PDF
-```
-
-There are three agent implementations. Pydantic AI output tools ensure the
-coordinator and report agent cannot merely claim they finished: their ordinary
-Python tools must execute and return actual files. V1 runs receipt agents
-sequentially inside the same job. V2 moves receipt instances and the report agent
-into separate jobs while keeping the coordinator responsible for returning the
-result. The default remains `--mode v1`.
-
-### V2: sandbox orchestration
-
-```mermaid
-sequenceDiagram
-    participant L as Local launcher
     participant C as Coordinator sandbox
     participant W as Receipt sandboxes (bounded fan-out)
     participant R as Report sandbox
@@ -99,8 +63,8 @@ sequenceDiagram
     C-->>L: Final result, errors, and coordinator-owned artifacts
 ```
 
-For N inputs, a successful V2 run starts N receipt jobs plus one coordinator and
-one report job. The same three agent classes run in both modes. The local launcher
+For N inputs, a successful run starts N receipt jobs plus one coordinator and
+one report job. There are three agent implementations. The local launcher
 uploads inputs and starts only the coordinator; child submission, waiting,
 collection and report retrieval happen inside that coordinator sandbox.
 
@@ -110,13 +74,12 @@ including dependency installation. `--timeout` bounds the whole coordinator job.
 For a smaller orchestration demonstration:
 
 ```sh
-python3 receipts.py --mode v2 --profile minimal --concurrency 2 --output receipt-output-v2-small
+python3 receipts.py --profile minimal --concurrency 2 --output receipt-output-small
 ```
 
 Workers receive their original input, code, and inference configuration. The
 coordinator collects structured receipt records, then supplies those records and
-original inputs to the report job. That job renders the originals for the same
-V1 appendix layout. Worker-local image paths are not reused across filesystems.
+original inputs to the report job. That job renders the originals for the appendix layout. Worker-local image paths are not reused across filesystems.
 Completed child filesystems remain available for immediate retrieval; no persistent
 tags or separate storage service are created.
 
@@ -175,8 +138,8 @@ retry, and source page numbers are assigned by code.
 
 The inference key goes only into the sandbox execution environment, is removed
 from the agent process environment when constructing clients, and is excluded
-from the dependency-install subprocess. Sandbox API credentials are not sent into
-the V1 job; in V2 they are held only by the coordinator. Logs record agent stages,
+from the dependency-install subprocess. Sandbox API configuration is held only by
+the coordinator. Logs record agent stages,
 selected models, and job IDs, excluding raw
 model errors and credentials.
 
@@ -237,37 +200,7 @@ byte counts and SHA-256 before a successful local result is published.
 
 ## Live verification: September 15, 2026
 
-The corrected three-input run completed through Token Factory and returned
-checksummed JSON and PDF after the sandbox process ended. The control receipt was
-included at USD 14.75, the unreadable total was flagged, and the corrupt PDF was a
-document error. Its coordinator operation was
-`01a0a584-e46f-7106-9374-4935c34b2b00`.
-
-The corrected 14-input `demo` run also completed from one launcher command:
-8 included, 4 flagged, 1 duplicate, and 1 corrupt-file error. Every synthetic
-receipt matched its intended outcome, signed amount and currency, including the
-refund, discount, included tax, carry-forward, unreadable total and deliberately
-inconsistent total. The exact copy was counted once. All 13 readable inputs used
-one extraction call and one interpretation call. The coordinator returned both
-artifacts from filesystem `1201f607-808d-47a2-aa6b-9d5f92acfccf`, operation
-`01a0a59e-e394-7113-845a-2a6976550da8`.
-
-Observed totals were CHF 54.50, EUR 102.10 and USD 16.93. Public receipts `r02`
-and `r03` still had interpretation-related arithmetic flags; low-resolution `r01`
-was read as USD 2.18 rather than the source's USD 2.13. These model limitations
-remain visible in the outputs. The run demonstrates automated sandbox execution
-and artifact handoff; it does not establish extraction accuracy for arbitrary
-receipts. No output was manually corrected.
-
-The original false-exclusion bug is covered by a regression test: a printed final
-total must not be summed again with subtotal and tax. The 26 V1 checks include
-included-tax/carry-forward handling, genuine arithmetic
-contradictions, page-count retries, and preservation of extracted text if
-interpretation fails. Tool names are explicit and match the model instructions.
-
-### V2 live verification
-
-The three-input V2 run used concurrency 2 and produced five sandbox jobs:
+The three-input run used concurrency 2 and produced five sandbox jobs:
 coordinator `01a0a5af-3f01-7608-bc21-76fcd15f0c59`, three receipt workers, and report
 job `01a0a5b0-631c-7792-8770-eb3d3b90c684`. Receipt worker timestamps confirmed two
 workers executing concurrently. The workers completed out of input order; the
@@ -281,8 +214,9 @@ timestamps confirmed a peak of three concurrent receipt workers; the report job
 started after all receipt outcomes were collected. The coordinator returned
 checksummed JSON/PDF with 8 included, 4 flagged, 1 duplicate and 1 corrupt-file
 error. Every synthetic intended outcome, signed amount and currency matched the
-fixture checks. Totals were CHF 54.50, EUR 102.10 and USD 16.93, with the same public
-receipt limitations described above. Duplicate `v01` exhausted interpretation
+fixture checks. Totals were CHF 54.50, EUR 102.10 and USD 16.93, with public
+receipt limitations: `r02`/`r03` retain interpretation-related arithmetic flags,
+and low-resolution `r01` was read as USD 2.18 rather than USD 2.13. Duplicate `v01` exhausted interpretation
 retries but retained its source fingerprint, allowing exact deduplication against
 `s08`; that failure remains visible in JSON and the appendix. No manual correction
 or rerun of a failed receipt was needed.
@@ -292,11 +226,11 @@ final filesystem `9f23d677-f323-4a02-946d-a374ddc061a6`. The separate report ope
 was `01a0a5b6-63a8-743e-9c3e-bf11ab1d0aee`. The downloaded 21-page PDF was rendered
 and visually checked; `result.json` records all child IDs and timing evidence.
 
-The combined suite has 35 passing tests. V2 checks cover the concurrency bound,
+Automated checks cover the concurrency bound,
 out-of-order completion, original transfer, child timeout containment, shared
 failure cancellation, cancellation during submission, local wait deadlines,
 parent cancellation, report failure, checksum failure, no ambiguous-submission
-retry, coordinator artifact ownership, and the shared V1 entrypoint.
+retry, coordinator artifact ownership, and the default orchestration command.
 
 ## Local verification
 

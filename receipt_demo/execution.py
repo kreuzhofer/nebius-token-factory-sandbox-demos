@@ -49,7 +49,7 @@ async def run(root=Path('/app')):
     role = config.get('role', 'coordinator')
     execution = None
     # Capture credentials needed for child dispatch before Models removes the inference key.
-    if role == 'coordinator' and config.get('mode') == 'v2':
+    if role == 'coordinator':
         from sandbox_jobs import SandboxJobs
         from .orchestration import SandboxExecution
         child_env = {key: os.environ[key] for key in INFERENCE_ENV if os.environ.get(key)}
@@ -59,7 +59,7 @@ async def run(root=Path('/app')):
     models = Models()
     output, work = root / 'output', root / 'work'
     output.mkdir(parents=True, exist_ok=True)
-    log('configuration', role=role, mode=config.get('mode', 'v1'),
+    log('configuration', role=role,
         agent_model=models.agent_name, vision_model=models.vision_name)
     try:
         if role == 'coordinator':
