@@ -11,20 +11,20 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from nebius_sandbox import ExecutionFailed, Operation, SandboxClient
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
+
 from receipt_demo.agents import CoordinatorAgent
 from receipt_demo.models import Decisions, Receipt
 from receipt_demo.orchestration import SandboxExecution
 from receipt_demo.reconcile import reconcile
-from sandbox_jobs import SandboxJobs
+from receipt_demo.tests.test_receipts import tool_model
 
-from tests.test_receipts import tool_model
-
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 
-class FakeSandbox(SandboxJobs):
+class FakeSandbox(SandboxClient):
     def __init__(self, fail=None, corrupt=False):
         self.blobs, self.operations, self.outputs = {}, {}, {}
         self.fail, self.corrupt = fail, corrupt
@@ -41,7 +41,8 @@ class FakeSandbox(SandboxJobs):
     def unpack(self, files, path):
         return json.loads(self.blobs[files[path]["uuid"]])
 
-    def submit(self, image, files, script, env, timeout):
+    def submit(self, image, **options):
+        files, env = options["files"], options["env"]
         role = self.unpack(files, "/app/workflow.json")["role"]
         sources = self.unpack(files, "/app/inputs.json")
         key = sources[0]["receipt_id"] if role == "receipt" else "report"
@@ -88,32 +89,36 @@ class FakeSandbox(SandboxJobs):
             self.outputs[operation] = data
         return operation
 
-    def request(self, method, path, body=None):
-        operation = path.rsplit("/", 1)[-1]
+    def cancel(self, operation):
         with self.lock:
             info = self.operations[operation]
-            if method == "DELETE":
-                self.cancelled.append(operation)
-                if not info["finished"]:
-                    self.active -= 1
-                    info["finished"] = True
-                return {}
-            info["polls"] += 1
-            # First input finishes last; other workers must continue in the meantime.
-            if info["key"] == "a" and info["polls"] < 3:
-                return {"status": "EXECUTING"}
+            self.cancelled.append(operation)
             if not info["finished"]:
                 self.active -= 1
                 info["finished"] = True
+
+    def get_operation(self, operation):
+        with self.lock:
+            info = self.operations[operation]
+            info["polls"] += 1
+            # First input finishes last; other workers must continue in the meantime.
+            if info["key"] == "a" and info["polls"] < 3:
+                return Operation(operation, "EXECUTING")
+            if not info["finished"]:
+                info["finished"] = True
+                self.active -= 1
                 self.finished.append(info["key"])
         state = {"exit_code": 0}
         if self.fail == info["key"]:
             state = {"exit_code": 1, "timed_out": True}
-        return {
-            "status": "SUCCESS",
-            "result_image_uuid": operation,
-            "metadata": {"result": {"state": state}},
-        }
+        return Operation.from_response(
+            operation,
+            {
+                "status": "SUCCESS",
+                "result_image_uuid": operation,
+                "metadata": {"result": {"state": state}},
+            },
+        )
 
     def download(self, image, path):
         return self.outputs[image][Path(path).name]
@@ -133,7 +138,7 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["jobs"], [])
 
     async def test_default_launcher_starts_only_coordinator_with_orchestration_config(self):
-        import receipts
+        from receipt_demo import __main__ as receipts
 
         api = FakeSandbox()
         with (
@@ -149,23 +154,74 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             with (
-                patch("sys.argv", ["receipts.py", "--profile", "minimal", "--output", directory]),
-                patch("receipts.load_env"),
-                patch("receipts.SandboxJobs", return_value=api),
-                patch.object(api, "python_image", return_value="base"),
-                patch.object(api, "run", return_value=("parent", "parent-image")) as run,
-                patch("receipts.retrieve_result", return_value={"status": "completed"}),
+                patch(
+                    "sys.argv",
+                    ["receipt_demo", "--profile", "minimal", "--output", directory],
+                ),
+                patch(
+                    "receipt_demo.__main__.load_env",
+                    return_value={
+                        "NEBIUS_API_KEY": "inference-key",
+                        "CONTREE_TOKEN": "sandbox-key",
+                        "CONTREE_PROJECT": "project",
+                    },
+                ),
+                patch("receipt_demo.__main__.SandboxClient", return_value=api),
+                patch("receipt_demo.__main__.python_image", return_value="base"),
+                patch.object(api, "submit", return_value="parent") as submit,
+                patch.object(
+                    api,
+                    "wait",
+                    return_value=Operation.from_response(
+                        "parent",
+                        {
+                            "status": "SUCCESS",
+                            "result_image_uuid": "parent-image",
+                            "metadata": {"result": {"state": {"exit_code": 0}}},
+                        },
+                    ),
+                ),
+                patch(
+                    "receipt_demo.__main__.retrieve_result", return_value={"status": "completed"}
+                ),
             ):
                 receipts.main()
-            run.assert_called_once()
-            image, files, script, env, timeout = run.call_args.args
+            submit.assert_called_once()
+            files, env = submit.call_args.kwargs["files"], submit.call_args.kwargs["env"]
             config = api.unpack(files, "/app/workflow.json")
             self.assertEqual(config["role"], "coordinator")
             self.assertEqual(config["concurrency"], 3)
             self.assertNotIn("mode", config)
-            self.assertIn("/app/sandbox_jobs.py", files)
+            self.assertIn("/app/nebius_sandbox.py", files)
+            self.assertNotIn("/app/demo.py", files)
+            self.assertNotIn("/app/receipt_demo/__main__.py", files)
             self.assertEqual(env["CONTREE_TOKEN"], "sandbox-key")
             self.assertEqual(env["NEBIUS_API_KEY"], "inference-key")
+
+    async def test_launcher_records_known_job_before_polling_failure(self):
+        from receipt_demo import __main__ as receipts
+
+        api = FakeSandbox()
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch(
+                    "sys.argv",
+                    ["receipt_demo", "--profile", "minimal", "--output", directory],
+                ),
+                patch("receipt_demo.__main__.load_env", return_value={"NEBIUS_API_KEY": "test"}),
+                patch("receipt_demo.__main__.SandboxClient", return_value=api),
+                patch("receipt_demo.__main__.python_image", return_value="base"),
+                patch.object(api, "submit", return_value="known-job") as submit,
+                patch.object(api, "wait", side_effect=ConnectionError("poll interrupted")),
+                self.assertRaises(ConnectionError),
+            ):
+                receipts.main()
+            self.assertEqual(submit.call_count, 1)
+            self.assertEqual(
+                json.loads((Path(directory) / "job.json").read_text()),
+                {"operation_id": "known-job", "image": None},
+            )
+            self.assertFalse((Path(directory) / "result.json").exists())
 
     def execution(self, api):
         return SandboxExecution(
@@ -247,14 +303,14 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
         execution.code = {}
         started, finish = threading.Event(), threading.Event()
 
-        def submit(*args):
+        def submit(*args, **kwargs):
             started.set()
             finish.wait(2)
             return "late-job"
 
         with (
             patch.object(api, "submit", side_effect=submit),
-            patch.object(api, "request") as request,
+            patch.object(api, "cancel") as cancel,
         ):
             task = asyncio.create_task(execution.job("receipt", {}))
             await asyncio.to_thread(started.wait, 2)
@@ -263,7 +319,7 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await task
             await execution.close()
-            request.assert_called_once_with("DELETE", "/operations/late-job")
+            cancel.assert_called_once_with("late-job")
 
     async def test_ambiguous_submission_is_never_retried(self):
         api = FakeSandbox()
@@ -281,14 +337,12 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
         clock = SimpleNamespace(monotonic=Mock(side_effect=[0, 331]), time=time.time)
         with (
             patch.object(api, "submit", return_value="slow-job"),
-            patch.object(api, "request") as request,
+            patch.object(api, "cancel") as cancel,
         ):
             with patch("receipt_demo.orchestration.time", clock):
-                from sandbox_jobs import ChildJobError
-
-                with self.assertRaises(ChildJobError):
+                with self.assertRaises(ExecutionFailed):
                     await execution.job("receipt", {})
-            request.assert_called_once_with("DELETE", "/operations/slow-job")
+            cancel.assert_called_once_with("slow-job")
             self.assertFalse(execution.active)
 
     async def test_parent_cancellation_returns_failure_and_cleans_up(self):

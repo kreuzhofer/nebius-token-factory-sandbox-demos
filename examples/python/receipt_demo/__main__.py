@@ -2,12 +2,14 @@
 
 import argparse
 import json
-import os
 from pathlib import Path
 
-from demo import ROOT, load_env
-from receipt_demo.execution import BOOTSTRAP, INFERENCE_ENV
-from sandbox_jobs import SandboxJobs, retrieve_result
+from configuration import ROOT, SandboxConfig, load_env
+from nebius_sandbox import SandboxClient
+
+from receipt_demo.artifacts import retrieve_result
+from receipt_demo.configuration import InferenceConfig
+from receipt_demo.sandbox import python_image, submit_worker, upload_code, worker_image
 
 FIXTURES = ROOT.parent.parent / "fixtures" / "receipts"
 
@@ -44,7 +46,7 @@ def inputs_for_run(paths, profile):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(prog="python -m receipt_demo", description=__doc__)
     parser.add_argument(
         "inputs", nargs="*", help="Receipt files; defaults to a shared fixture profile"
     )
@@ -70,24 +72,21 @@ def main():
         parser.error("--timeout must be between 300 and 3600 seconds")
     if not 1 <= args.concurrency <= 8 or not 300 <= args.child_timeout <= 1800:
         parser.error("--concurrency must be 1–8 and --child-timeout must be 300–1800 seconds")
-    load_env(args.env_file)
-    token = os.environ.get("CONTREE_TOKEN") or os.environ.get("NEBIUS_API_KEY")
-    if not token:
-        raise RuntimeError("Configure CONTREE_TOKEN or NEBIUS_API_KEY with demo.py configure")
-    api = SandboxJobs(token, os.environ.get("CONTREE_PROJECT"), os.environ.get("CONTREE_BASE_URL"))
+    values = load_env(args.env_file)
+    sandbox = SandboxConfig.from_env(values)
+    api = SandboxClient(sandbox.token, sandbox.project, sandbox.base_url)
     args.output.mkdir(parents=True, exist_ok=True)
     if any((args.output / name).exists() for name in ("result.json", "report.json", "report.pdf")):
         raise RuntimeError("Choose a fresh output directory to preserve previous results")
     image = args.retrieve
     if not image:
-        if not os.environ.get("NEBIUS_API_KEY"):
-            raise RuntimeError("Set NEBIUS_API_KEY for Token Factory inference")
+        inference = InferenceConfig.from_env(values)
         sources = inputs_for_run(args.inputs, args.profile)
         if not sources or len(sources) > 30:
             raise ValueError("Supply between 1 and 30 receipts")
         if sum(path.stat().st_size for _, path, _ in sources) > 50 * 1024 * 1024:
             raise ValueError("Receipt inputs exceed the 50 MiB demo limit")
-        image = api.python_image(args.image or os.environ.get("CONTREE_IMAGE"))
+        image = python_image(api, args.image or values.get("CONTREE_IMAGE"))
         files, inputs = {}, []
         for receipt_id, path, credit in sources:
             remote = "/app/inputs/" + receipt_id + path.suffix.lower()
@@ -95,9 +94,7 @@ def main():
             inputs.append(
                 {"receipt_id": receipt_id, "source": path.name, "path": remote, "credit": credit}
             )
-        for path in (ROOT / "receipt_demo").iterdir():
-            if path.suffix == ".py" or path.name == "requirements.txt":
-                files["/app/receipt_demo/" + path.name] = api.upload(path.read_bytes())
+        files.update(upload_code(api, ROOT))
         files["/app/inputs.json"] = api.upload(json.dumps(inputs).encode())
         files["/app/workflow.json"] = api.upload(
             json.dumps(
@@ -109,15 +106,13 @@ def main():
                 }
             ).encode()
         )
-        env = {key: os.environ[key] for key in INFERENCE_ENV if os.environ.get(key)}
-        env["RECEIPT_JOB_TIMEOUT"] = str(args.timeout)
-        for name in ("demo.py", "sandbox_jobs.py"):
-            files["/app/" + name] = api.upload((ROOT / name).read_bytes())
-        env["CONTREE_TOKEN"] = token
-        for key in ("CONTREE_PROJECT", "CONTREE_BASE_URL"):
-            if os.environ.get(key):
-                env[key] = os.environ[key]
-        operation, image = api.run(image, files, BOOTSTRAP, env, args.timeout)
+        env = dict(inference.to_env(), **sandbox.to_env())
+        operation = submit_worker(api, image, files, env, args.timeout)
+        print(f"Coordinator job: {operation}", flush=True)
+        (args.output / "job.json").write_text(
+            json.dumps({"operation_id": operation, "image": None}, indent=2)
+        )
+        image = worker_image(api.wait(operation, args.timeout + 120))
         (args.output / "job.json").write_text(
             json.dumps({"operation_id": operation, "image": image}, indent=2)
         )
