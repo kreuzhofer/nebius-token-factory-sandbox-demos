@@ -9,11 +9,13 @@ from demo import ROOT, load_env
 from receipt_demo.execution import BOOTSTRAP, INFERENCE_ENV
 from sandbox_jobs import SandboxJobs, retrieve_result
 
+FIXTURES = ROOT.parent.parent / "fixtures" / "receipts"
+
 
 def inputs_for_run(paths, profile):
     if paths:
         return [(f"input-{i:03}", Path(path), "") for i, path in enumerate(paths, 1)]
-    root = ROOT / "fixtures" / "receipts"
+    root = FIXTURES
     manifest = json.loads((root / "manifest.json").read_text())
     selected = manifest["profiles"].get(profile)
     if selected is None:

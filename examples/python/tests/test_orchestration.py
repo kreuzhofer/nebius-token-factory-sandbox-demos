@@ -13,15 +13,15 @@ from unittest.mock import Mock, patch
 
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
-
 from receipt_demo.agents import CoordinatorAgent
 from receipt_demo.models import Decisions, Receipt
 from receipt_demo.orchestration import SandboxExecution
 from receipt_demo.reconcile import reconcile
 from sandbox_jobs import SandboxJobs
-from test_receipts import tool_model
 
-ROOT = Path(__file__).parent
+from tests.test_receipts import tool_model
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class FakeSandbox(SandboxJobs):

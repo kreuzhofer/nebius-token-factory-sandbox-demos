@@ -18,7 +18,7 @@ jobs:
           python-version: "3.12"
       - name: Install development tools
         run: |
-          python -m venv .venv
-          .venv/bin/python -m pip install -r requirements-dev.txt
+          python -m venv examples/python/.venv
+          examples/python/.venv/bin/python -m pip install -r examples/python/requirements-dev.txt
       - name: Formatting, lint, file checks, and tests
-        run: .venv/bin/pre-commit run --all-files --show-diff-on-failure
+        run: examples/python/.venv/bin/pre-commit run --all-files --show-diff-on-failure

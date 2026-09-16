@@ -14,15 +14,12 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
-
 from receipt_demo.agents import ReceiptAgent, ReportAgent
 from receipt_demo.documents import prepare
 from receipt_demo.models import Decisions, DuplicateGroup, Receipt
 from receipt_demo.reconcile import reconcile
-from receipts import inputs_for_run
+from receipts import FIXTURES, inputs_for_run
 from sandbox_jobs import SandboxJobs, retrieve_result
-
-ROOT = Path(__file__).parent
 
 
 def receipt(key, total="10.00", currency="EUR", **kwargs):
@@ -240,7 +237,7 @@ class AccountingTests(unittest.TestCase):
 
 class DocumentTests(unittest.TestCase):
     def test_render_multipage_and_compare_reencoded_pixels(self):
-        root = ROOT / "fixtures/receipts/inputs"
+        root = FIXTURES / "inputs"
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             pages, _, _ = prepare(root / "s01-en-multipage.pdf", temp / "pdf")
