@@ -68,3 +68,48 @@ class ExampleTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_extend_reference_passes_and_starter_lacks_directory_support(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            project = workspace / "repair"
+            shutil.copytree(DEMO / "references/extend", project)
+            shutil.copytree(DEMO / "fixtures/extend/input", workspace / "input")
+            for format_name in ("json", "csv"):
+                target = workspace / "results" / format_name
+                target.mkdir(parents=True)
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "expense_summary",
+                        str(workspace / "input"),
+                        "--format",
+                        format_name,
+                        "--output",
+                        str(target / f"summary.{format_name}"),
+                    ],
+                    cwd=project,
+                    check=True,
+                    capture_output=True,
+                )
+            result = subprocess.run(
+                [sys.executable, str(DEMO / "checks/validate.py"), "extend", str(workspace)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "expense_summary",
+                    str(workspace / "input"),
+                    "--output",
+                    str(workspace / "starter.json"),
+                ],
+                cwd=DEMO / "references/repair",
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)

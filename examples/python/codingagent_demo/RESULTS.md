@@ -16,6 +16,12 @@ CSV parser. The helper returned `timed_out` and recovered its workspace and logs
 validation did not run. The task prompt was clarified to use `csv.DictReader` and
 `decimal.Decimal` before starting a new run. No checks were relaxed.
 
+Extend attempt 1 (`01a0ac69-0933-7191-905e-238a3c641da4`) completed in
+86.971 seconds but failed independent validation
+(`01a0ac6a-4d07-71aa-86fe-28986f9dc6f2`): issue lists were empty. Inspection
+also found manually joined CSV rows. Before a fresh run, the prompt added the
+specified expected outputs and explicit `csv.writer` guidance. Checks were unchanged.
+
 These durations are observations, not minimum runtimes or evidence of execution
 near the configured caps. Local run directories contain `example.json`, the
 answer, workspace archive, and agent logs; they are not committed to the repo.

@@ -120,8 +120,9 @@ Expected results:
 - CSV has columns `category,total` and those two category rows in sorted order,
   using normal CSV quoting. It contains no extra grand-total row.
 - Each invocation writes `issues.json` beside its selected output, containing
-  one issue identifying `b.csv`, line 4, and the invalid amount. Do not require
-  exact wording of the explanation.
+  one issue with `file` identifying `b.csv`, `line` equal to 4, `amount`
+  equal to `not-a-number`, and a nonempty `message`. Do not require exact
+  wording of the explanation. Write an empty list when there are no issues.
 - Exit status is zero when valid records were processed and invalid rows were
   reported. Unreadable input or no valid records produces a nonzero status and
   a diagnostic.

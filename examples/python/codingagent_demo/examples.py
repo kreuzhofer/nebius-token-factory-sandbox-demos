@@ -32,6 +32,37 @@ STAGES = {
             "to /workspace/repair/summary.json. Report actual test results."
         ),
     },
+    "extend": {
+        "timeout": 1800,
+        "inputs": [
+            "references/repair",
+            "fixtures/extend/input",
+            "fixtures/repair/test_expenses.py",
+        ],
+        "task": (
+            "Extend the correct project in /workspace/repair. Preserve python3 -m expense_summary "
+            "INPUT --output PATH and default JSON behavior. Add directory input: read only "
+            "top-level .csv files in filename order. Add --format json|csv and sort categories. "
+            "Keep csv.DictReader and decimal.Decimal. JSON has categories, total, count with "
+            "two-decimal money strings. CSV has category,total header and category rows only, "
+            "using csv.writer for normal CSV quoting, no grand-total row. Skip invalid amounts but retain valid "
+            "rows and write issues.json beside EACH output: a list of objects with file (input "
+            "filename), line (1-based, header is line 1), amount (original value), message "
+            "(explanation). Write [] when there are no issues. Exit zero with valid rows even "
+            "if there are issues; unreadable input or no valid records must exit nonzero with "
+            "a diagnostic. Keep outputs outside input directories. Test the added features; "
+            "run the original /workspace/test_expenses.py from the project without modifying it. "
+            "Run on /workspace/input to generate /workspace/results/json/summary.json and "
+            "/workspace/results/csv/summary.csv (each with issues.json alongside). "
+            "For the supplied input, assert SIX valid records, total 6.05, and categories "
+            "food, takeaway=4.80 and supplies=1.25. Each issues.json must contain exactly "
+            "one object: file=b.csv, line=4, amount=not-a-number, plus an explanation. "
+            "Parse the generated CSV with csv.reader and assert exactly a two-column header "
+            "and two two-column category rows. Add and run tests for these new features, "
+            "including error propagation and filename ordering, before finishing. "
+            "Report the actual test results and generated outputs."
+        ),
+    },
 }
 
 
