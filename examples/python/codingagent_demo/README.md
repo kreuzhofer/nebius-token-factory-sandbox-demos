@@ -1,0 +1,137 @@
+# OpenCode in a Nebius sandbox
+
+Run one unattended coding task with Token Factory inference and return its answer,
+workspace archive, and logs. The local launcher uses Python's standard library.
+OpenCode runs inside the sandbox with command/file permissions allowed. Networking
+is explicitly enabled for inference and task dependencies.
+
+This first implementation includes the helper, a reusable runtime-image build,
+and an automated edit-and-test compatibility proof. The larger task progression
+in [TASKS.md](TASKS.md) remains subsequent work.
+
+## Build the runtime once
+
+From `examples/python`, configure the shared `.env` using the names in
+[.env.example](.env.example), then run:
+
+```sh
+python3 -m codingagent_demo build-image --output coding-runtime
+```
+
+The build imports `python:3.12-slim` unless `--base-image UUID` is supplied, then
+runs a normal sandbox job that installs Git, ripgrep and OpenCode **1.18.31**.
+The Linux x64 baseline binary comes from the official npm package; its archive
+is checked against a pinned SHA-512 digest and its version is verified.
+
+Nebius preserves that job's filesystem because it is not disposable. The
+resulting image UUID is saved in `coding-runtime/runtime.json`, together with
+the build operation and base image. This is the API's import/run/checkpoint flow,
+not a Dockerfile build service. See the
+[sandbox overview](https://docs.tokenfactory.nebius.com/sandboxes/overview) and
+[spawn API](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance).
+
+No inference credentials are passed to the build. Subsequent task jobs start from
+this image and do not download or install the OpenCode binary. Each job gets a
+fresh workspace; task outputs are not used as the base for the next task.
+
+## Run the automated proof
+
+```sh
+python3 -m codingagent_demo proof \
+  --runtime coding-runtime/runtime.json \
+  --output coding-output-proof
+```
+
+The proof asks OpenCode to repair the uploaded `calculator.py` and run its tests.
+It retrieves the edited code, then runs trusted copies of the tests in a separate
+validation sandbox without networking or inference credentials. It repeats with
+a fresh task sandbox from the same runtime image. This verifies image reuse and
+keeps test results separate from the agent's claim of success.
+
+`proof.json` records both task outcomes and independent validation results.
+The command exits nonzero if either task or validation fails.
+
+## Run your own task
+
+```sh
+python3 -m codingagent_demo run \
+  --runtime coding-runtime/runtime.json \
+  --task 'Fix the add function in proof/calculator.py. Run the tests and report the output.' \
+  --file codingagent_demo/fixtures/proof \
+  --timeout 300 \
+  --output coding-output-task
+```
+
+Use `--image UUID` instead of `--runtime` to select an existing prepared image.
+Repeat `--file` for multiple inputs, or use `--task-file PATH` for a longer prompt.
+An input file is placed at `/workspace/<filename>`; a directory preserves its
+name and contents. Symlinks are rejected. `.git`, `.venv`, `__pycache__`,
+`node_modules` and `.env` entries are omitted from input directories.
+Use a new output directory for each run.
+
+The default model is `Qwen/Qwen3-235B-A22B-Instruct-2507`; override it with
+`--model` or `NEBIUS_CODING_MODEL`. Main and auxiliary models use the configured
+Token Factory provider. Only the inference key enters the task sandbox; the
+sandbox API token remains with the launcher. Agent configuration lives outside
+the workspace. The archived workspace excludes the runtime and OpenCode's
+session/cache directories.
+
+The helper checks the account's reported maximum timeout before submission.
+The worker reserves 30 seconds of the requested execution time for packaging
+and stops the agent process group if its deadline expires. The client permits
+another 120 seconds for operation completion and checkpoint retrieval.
+Progress currently shows operation-state changes; detailed agent events are
+retrieved when the job finishes.
+
+## Results and failures
+
+Each run writes `job.json` as soon as the operation ID is known, followed by
+`result.json`, `workspace.tar.gz`, `events.jsonl` and `stderr.log` when available.
+`result.json` includes status, answer, operation/image IDs, model/runtime versions,
+elapsed time and artifact paths. Downloaded archives are saved without executing
+or extracting their contents on the host.
+
+Completed means the agent finished normally and the archive was retrieved;
+correctness is a separate check. Failed, timed-out, and confirmed-cancelled jobs
+are reported explicitly. A connection loss or an unconfirmed cancellation returns
+`interrupted` with the known operation ID. Nothing automatically resubmits the
+task. Files and logs after failure are best-effort; checkpoint availability is
+not guaranteed. Invalid arguments and setup errors can raise before submission.
+
+Python callers can use the same interface:
+
+```python
+from codingagent_demo import AgentConfig, run_task
+
+# client is an authenticated nebius_sandbox.SandboxClient.
+result = run_task(
+    client,
+    AgentConfig(api_key=inference_key),
+    image=prepared_image_uuid,
+    task="Fix the uploaded project and run its tests.",
+    files=[project_directory],
+    output="coding-output-task",
+    timeout=300,
+)
+```
+
+## Verified compatibility
+
+On 2026-09-16 the `proof` command passed using OpenCode 1.18.31 and the default
+Token Factory model. Both jobs reused image
+`a485428f-a38c-42a5-9e55-ac216fa5b045`, built by operation
+`01a0ac09-6c1b-723e-82a4-c68420c5305e`.
+
+| Task operation | Helper elapsed | Independent validation operation | Result |
+| --- | --- | --- | --- |
+| `01a0ac12-ea6c-734a-9cb1-b1d15a942561` | 11.638 s | `01a0ac13-1624-7393-b3f1-e5ab13269c7b` | Both tests passed |
+| `01a0ac13-2a88-7213-805e-6ed38cc2a4f9` | 10.216 s | `01a0ac13-511c-74aa-a26d-a716f4b7d255` | Both tests passed |
+
+These are short compatibility runs, not evidence of 30-minute execution or the
+full task ladder. Image availability is scoped to the account and service
+retention. Build a new image when reproducing elsewhere or changing the runtime.
+
+The pinned CLI's [run command source](https://github.com/anomalyco/opencode/blob/v1.18.31/packages/opencode/src/cli/cmd/run.ts)
+provides JSON events and disables interactive question/plan transitions in
+headless mode. Provider configuration follows the matching
+[OpenCode provider documentation](https://opencode.ai/docs/providers/).

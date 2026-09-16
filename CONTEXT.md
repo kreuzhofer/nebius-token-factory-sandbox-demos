@@ -1,4 +1,4 @@
-# Receipt expense reporting
+# Agent demos
 
 Receipts demonstrate automated agents running in Nebius Sandboxes and using
 Token Factory for inference. The expense report retains original evidence and
@@ -7,6 +7,8 @@ flags problematic records; the demo has no manual review or correction stage.
 Three agent roles carry the workflow from input receipts to the final result.
 
 ## Language
+
+### Receipt reporting
 
 **Coordinator agent**:
 The agent that enumerates receipts, dispatches receipt agents, collects their
@@ -59,3 +61,18 @@ another independent example.
 Known values and outcomes used for lightweight checks of the demo's behavior.
 Values unreadable in the supplied evidence remain explicitly unknown, even when
 the underlying synthetic source values are known.
+
+### Coding tasks
+
+**Coding agent**:
+An agent that changes and executes code to fulfill a task using the supplied
+files, returning its answer and the resulting workspace.
+
+**Coding task**:
+One requested unit of coding work, described by instructions and explicitly
+supplied files or folders. Each task begins in a fresh workspace.
+
+**Task outcome**:
+The coding agent's execution status, answer, available workspace files, and
+diagnostics. Completion means the agent finished; passing correctness checks is
+a separate result.

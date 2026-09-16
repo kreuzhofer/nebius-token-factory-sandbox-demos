@@ -4,8 +4,10 @@ This is the finalized plan for
 [Which task ladder demonstrates longer autonomous execution?](https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos/issues/23),
 using the agreed
 [coding-task helper contract](https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos/issues/22).
-The helper, fixtures, and checks described below are implementation work still to
-come. No live coding-agent results are claimed here.
+The initial helper, reusable image build, and small compatibility proof are
+implemented; see [the demo guide](README.md). The create/repair/extend ladder
+and deadline probe below remain planned work. No live results for that ladder
+are claimed here.
 
 The examples demonstrate supplying files, running OpenCode unattended in a fresh
 Nebius sandbox with Token Factory inference, and retrieving an answer, workspace
