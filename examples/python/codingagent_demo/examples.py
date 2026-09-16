@@ -18,6 +18,20 @@ STAGES = {
             "Test the script and report what you did."
         ),
     },
+    "repair": {
+        "timeout": 600,
+        "inputs": ["fixtures/repair"],
+        "task": (
+            "Repair the project in /workspace/repair. Its command is python3 -m expense_summary "
+            "INPUT --output PATH. Fix binary-float money handling, discarded refunds, and naive "
+            "comma splitting. Use csv.DictReader for CSV parsing and decimal.Decimal for money; "
+            "replace the broken parsing approach rather than patching string splitting. "
+            "Preserve the JSON interface: categories, total, count; money must "
+            "use exact decimal arithmetic and two-decimal strings. Do not change tests. "
+            "Run python3 -m unittest discover -v from the project, then summarize expenses.csv "
+            "to /workspace/repair/summary.json. Report actual test results."
+        ),
+    },
 }
 
 
@@ -56,6 +70,9 @@ def run_example(client, config, image, stage, output):
         }
         for name in ("unpack.py", "validate.py"):
             files["/checks/" + name] = client.upload((DEMO / "checks" / name).read_bytes())
+        files["/checks/test_expenses.py"] = client.upload(
+            (DEMO / "fixtures/repair/test_expenses.py").read_bytes()
+        )
         operation = client.submit(
             image,
             command="/usr/local/bin/python3",

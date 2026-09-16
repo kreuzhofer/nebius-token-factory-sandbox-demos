@@ -59,6 +59,10 @@ python3 -m codingagent_demo example create \
   --output coding-output-create
 ```
 
+Use `example repair` with a fresh output directory to diagnose and fix the
+uploaded multi-file project. Its original tests exercise decimal arithmetic,
+refunds, and quoted CSV fields.
+
 Create uploads a CSV and asks the agent to write and execute its summary script.
 The returned archive is unpacked only inside a separate validation sandbox.
 `example.json` records the task outcome and independent checks; the command

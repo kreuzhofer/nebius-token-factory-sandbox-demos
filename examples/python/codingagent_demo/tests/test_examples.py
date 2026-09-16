@@ -28,3 +28,43 @@ class ExampleTests(unittest.TestCase):
             (workspace / "summary.json").write_text("{}")
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
+
+    def test_repair_fixture_exposes_each_bug_and_reference_passes(self):
+        tests = DEMO / "fixtures/repair/test_expenses.py"
+        for name in ("decimal", "refund", "quoted"):
+            for project, expected in (("fixtures/repair", 1), ("references/repair", 0)):
+                with self.subTest(case=name, project=project):
+                    result = subprocess.run(
+                        [sys.executable, str(tests), f"ExpenseTests.test_{name}"],
+                        cwd=DEMO / project,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    self.assertIn("Ran 1 test", result.stderr)
+
+    def test_repair_reference_passes_independent_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            project = workspace / "repair"
+            shutil.copytree(DEMO / "references/repair", project)
+            shutil.copy(DEMO / "fixtures/repair/expenses.csv", project)
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "expense_summary",
+                    "expenses.csv",
+                    "--output",
+                    "summary.json",
+                ],
+                cwd=project,
+                check=True,
+                capture_output=True,
+            )
+            result = subprocess.run(
+                [sys.executable, str(DEMO / "checks/validate.py"), "repair", str(workspace)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
