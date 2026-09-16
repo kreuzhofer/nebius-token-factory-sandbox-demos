@@ -83,6 +83,33 @@ Sources:
 
 ## Verification
 
+For development, use Python 3.12 and install the pinned tools and test dependencies:
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/pre-commit install --install-hooks
+```
+
+Ruff formats Python, sorts imports, and checks common errors using `pyproject.toml`.
+The pre-commit hook checks staged files for formatting, lint, invalid YAML/JSON,
+merge markers, and whitespace, then runs the full local test suite. If a hook fixes
+files, review and stage those changes before committing again. The tests use fake
+models and API responses; no credentials or live sandbox calls are needed.
+
+```sh
+# Apply Python fixes and formatting:
+.venv/bin/ruff check --fix .
+.venv/bin/ruff format .
+# Run the same checks as CI, including tests:
+.venv/bin/pre-commit run --all-files --show-diff-on-failure
+```
+
+GitHub Actions runs the same hook configuration on pull requests and pushes to
+`main`. Install hooks once in each new checkout. Development dependencies are
+separate from the sandbox runtime requirements; the standard-library launcher
+still needs no local pip installation to run demos.
+
 ```sh
 python3 -m unittest -v test_demo
 python3 agent.py smoke
