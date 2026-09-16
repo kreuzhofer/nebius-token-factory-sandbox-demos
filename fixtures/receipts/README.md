@@ -27,7 +27,7 @@ python3 fixtures/receipts/check.py --list demo
 | `all` | All 18 inputs, including orientation and blur variants |
 
 The receipt pipeline is not implemented yet; this command lists its future
-input paths. The existing `examples/python/demo.py agent` is still the prime-number tool demo.
+input paths. Run `python3 -m basic_demo agent` from `examples/python/` for the prime-number tool demo.
 The coordinator should pass the selected **input files and distinct input IDs**
 to workers and retain originals for the report appendix. `source_receipt_id`,
 coverage tags, and fixture classifications are fixture bookkeeping, not extraction

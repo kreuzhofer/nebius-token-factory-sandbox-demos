@@ -1,76 +1,40 @@
 """Entrypoint shared by coordinator, receipt, and report sandbox jobs."""
 
 import asyncio
-import hashlib
 import json
 import os
 import signal
 import time
 from pathlib import Path
 
-BOOTSTRAP = """import os, subprocess, sys, time
-os.environ['RECEIPT_DEADLINE'] = str(time.monotonic() + int(os.environ.get('RECEIPT_JOB_TIMEOUT', '1800')) - 60)
-try:
-    install = subprocess.run(
-        [sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check',
-         '--no-cache-dir', '-r', '/app/receipt_demo/requirements.txt'],
-        env={'PATH': os.defpath}, capture_output=True, timeout=240)
-    if install.returncode:
-        print('Dependency installation failed; check the pinned requirements and package access.', flush=True)
-        sys.exit(1)
-    from receipt_demo.execution import main
-    main()
-except Exception as exc:
-    print('Agent bootstrap failed: ' + type(exc).__name__, flush=True)
-    sys.exit(1)
-"""
+from configuration import SandboxConfig
+from nebius_sandbox import SandboxClient
 
-INFERENCE_ENV = (
-    "NEBIUS_API_KEY",
-    "NEBIUS_BASE_URL",
-    "NEBIUS_VISION_MODEL",
-    "NEBIUS_AGENT_MODEL",
-    "NEBIUS_VISION_BASE_URL",
-)
+from .artifacts import artifact_refs
+from .configuration import InferenceConfig
 
 
-def artifact_refs(artifacts):
-    refs = {}
-    for name, path in artifacts.items():
-        data = Path(path).read_bytes()
-        if not data or (name.endswith(".pdf") and not data.startswith(b"%PDF-")):
-            raise RuntimeError("Report agent returned invalid artifacts")
-        refs[name] = {
-            "path": str(path),
-            "bytes": len(data),
-            "sha256": hashlib.sha256(data).hexdigest(),
-        }
-    return refs
-
-
-async def run(root=Path("/app")):
-    from .agents import CoordinatorAgent, Models, ReceiptAgent, ReportAgent, log
+async def run(root=Path("/app"), *, model_factory=None):
+    from .agents import CoordinatorAgent, ReceiptAgent, ReportAgent, log
     from .documents import prepare
+    from .inference import Models
     from .models import Receipt
 
     started_at = time.time()
     config = json.loads((root / "workflow.json").read_text())
     role = config.get("role", "coordinator")
     execution = None
-    # Capture credentials needed for child dispatch before Models removes the inference key.
-    if role == "coordinator":
-        from sandbox_jobs import SandboxJobs
-
+    inference = InferenceConfig.from_env(os.environ)
+    sandbox = SandboxConfig.from_env(os.environ) if role == "coordinator" else None
+    # Entrypoint owns credential removal; model construction has no environment side effects.
+    for name in ("NEBIUS_API_KEY", "CONTREE_TOKEN", "CONTREE_PROJECT", "CONTREE_BASE_URL"):
+        os.environ.pop(name, None)
+    if sandbox:
         from .orchestration import SandboxExecution
 
-        child_env = {key: os.environ[key] for key in INFERENCE_ENV if os.environ.get(key)}
-        api = SandboxJobs(
-            os.environ.pop("CONTREE_TOKEN"),
-            os.environ.pop("CONTREE_PROJECT", None),
-            os.environ.pop("CONTREE_BASE_URL", None),
-        )
-        execution = SandboxExecution(api, config, child_env, root)
-    models = Models()
+        client = SandboxClient(sandbox.token, sandbox.project, sandbox.base_url)
+        execution = SandboxExecution(client, config, inference.to_env(), root)
+    models = (model_factory or Models)(inference)
     output, work = root / "output", root / "work"
     output.mkdir(parents=True, exist_ok=True)
     log("configuration", role=role, agent_model=models.agent_name, vision_model=models.vision_name)

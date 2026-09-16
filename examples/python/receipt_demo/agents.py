@@ -3,24 +3,19 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import os
 import re
 import shutil
 import time
-from pathlib import Path
 
 os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
 
-from openai import AsyncOpenAI
 from pydantic_ai import Agent, BinaryContent, ModelRetry, PromptedOutput, RunContext, ToolOutput
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.profiles.openai import OpenAIModelProfile
-from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.usage import UsageLimits
 
+from .artifacts import artifact_refs
 from .documents import inference_image, prepare
 from .models import Decisions, Evidence, ExtractedDocument, Receipt, ReceiptInterpretation
 from .reconcile import reconcile
@@ -29,38 +24,6 @@ from .report import write_report
 
 def log(stage, **fields):
     print(json.dumps({"stage": stage, **fields}), flush=True)
-
-
-class Models:
-    def __init__(self):
-        key = os.environ.pop("NEBIUS_API_KEY")
-        base = os.environ.get("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1")
-        vision_base = os.environ.get("NEBIUS_VISION_BASE_URL", base)
-        if not all(url.startswith("https://") for url in (base, vision_base)):
-            raise ValueError("HTTPS Token Factory endpoints required")
-        self.clients = [
-            AsyncOpenAI(api_key=key, base_url=url, timeout=90, max_retries=1)
-            for url in (base, vision_base)
-        ]
-        self.agent_name = os.environ.get("NEBIUS_AGENT_MODEL", "Qwen/Qwen3-30B-A3B-Instruct-2507")
-        self.vision_name = os.environ.get("NEBIUS_VISION_MODEL", "openbmb/MiniCPM-V-4_5")
-        # Explicit capabilities avoid applying OpenAI-specific reasoning defaults to third-party IDs.
-        self.agent = OpenAIChatModel(
-            self.agent_name,
-            provider=OpenAIProvider(openai_client=self.clients[0]),
-            profile=OpenAIModelProfile(supports_tools=True, openai_supports_reasoning=False),
-        )
-        self.vision = OpenAIChatModel(
-            self.vision_name,
-            provider=OpenAIProvider(openai_client=self.clients[1]),
-            profile=OpenAIModelProfile(
-                supports_json_object_output=True, openai_supports_reasoning=False
-            ),
-        )
-
-    async def close(self):
-        for client in self.clients:
-            await client.close()
 
 
 class ReceiptAgent:
@@ -287,19 +250,12 @@ class CoordinatorAgent:
             await self.execution.process(sources, receipts, work)
             artifacts = await self.execution.report(sources, receipts, work / "report")
             # The coordinator publishes only artifacts it has actually retrieved.
-            refs = {}
+            published = {}
             for name in ("report.json", "report.pdf"):
-                source = artifacts[name]
-                data = Path(source).read_bytes()
-                if not data or (name.endswith(".pdf") and not data.startswith(b"%PDF-")):
-                    raise RuntimeError("Report agent returned invalid artifacts")
                 target = output / name
-                shutil.copyfile(source, target)
-                refs[name] = {
-                    "path": str(target),
-                    "bytes": len(data),
-                    "sha256": hashlib.sha256(data).hexdigest(),
-                }
+                shutil.copyfile(artifacts[name], target)
+                published[name] = target
+            refs = artifact_refs(published)
             report = json.loads((output / "report.json").read_text())
             response = {
                 "schema_version": "1",

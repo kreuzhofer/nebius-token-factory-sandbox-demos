@@ -5,11 +5,12 @@ import json
 import time
 from pathlib import Path
 
-from sandbox_jobs import ChildJobError, retrieve_result
+from nebius_sandbox import ExecutionFailed, OperationFailed
 
 from .agents import log
-from .execution import BOOTSTRAP
+from .artifacts import retrieve_result
 from .models import Receipt
+from .sandbox import submit_worker, upload_code
 
 
 class SandboxExecution:
@@ -24,16 +25,7 @@ class SandboxExecution:
         return await asyncio.to_thread(self.api.upload, json.dumps(value).encode())
 
     async def prepare(self, sources):
-        self.code = {}
-        for path in (self.root / "receipt_demo").iterdir():
-            if path.suffix == ".py" or path.name == "requirements.txt":
-                self.code["/app/receipt_demo/" + path.name] = await asyncio.to_thread(
-                    self.api.upload, path.read_bytes()
-                )
-        for name in ("demo.py", "sandbox_jobs.py"):
-            self.code["/app/" + name] = await asyncio.to_thread(
-                self.api.upload, (self.root / name).read_bytes()
-            )
+        self.code = await asyncio.to_thread(upload_code, self.api, self.root)
         for source in sources:
             self.inputs[source["path"]] = await asyncio.to_thread(
                 self.api.upload, Path(source["path"]).read_bytes()
@@ -41,7 +33,7 @@ class SandboxExecution:
 
     async def cancel(self, operation):
         try:
-            await asyncio.to_thread(self.api.request, "DELETE", "/operations/" + operation)
+            await asyncio.to_thread(self.api.cancel, operation)
             log("child.cancel_requested", operation_id=operation)
         except Exception:
             log("child.cancel_unconfirmed", operation_id=operation)
@@ -58,11 +50,11 @@ class SandboxExecution:
         # Shield submission: if cancelled during POST, retain its returned ID for cleanup.
         submission = asyncio.create_task(
             asyncio.to_thread(
-                self.api.submit,
+                submit_worker,
+                self.api,
                 self.config["image"],
                 files,
-                BOOTSTRAP,
-                dict(self.env, RECEIPT_JOB_TIMEOUT=str(timeout)),
+                self.env,
                 timeout,
             )
         )
@@ -85,21 +77,21 @@ class SandboxExecution:
         deadline = time.monotonic() + timeout + 30
         try:
             while time.monotonic() < deadline:
-                completed = await asyncio.to_thread(
-                    self.api.request, "GET", "/operations/" + operation
-                )
-                if completed["status"] in ("SUCCESS", "FAILED", "CANCELLED"):
+                completed = await asyncio.to_thread(self.api.get_operation, operation)
+                if completed.done:
                     self.active.discard(operation)
                     trace["finished_at"] = time.time()
-                    trace["status"] = completed["status"]
-                    if completed["status"] != "SUCCESS":
-                        raise ChildJobError("Receipt sandbox did not complete successfully")
-                    image = self.api.result_image(operation, completed)
+                    trace["status"] = completed.status
+                    result = completed.execution_result(require_image=True)
+                    for output in (result.stdout, result.stderr):
+                        if output:
+                            print(output, end="" if output.endswith("\n") else "\n", flush=True)
+                    image = result.image
                     trace["image"] = image
                     log("child.completed", **trace)
                     return image
                 await asyncio.sleep(1)
-            raise ChildJobError("Receipt sandbox exceeded its wait deadline")
+            raise ExecutionFailed("Receipt sandbox exceeded its wait deadline")
         finally:
             if operation in self.active:
                 await self.cancel(operation)
@@ -118,7 +110,7 @@ class SandboxExecution:
                 }
                 try:
                     image = await self.job("receipt", files, key)
-                except ChildJobError as exc:
+                except (OperationFailed, ExecutionFailed) as exc:
                     record = Receipt(
                         **{name: source[name] for name in ("receipt_id", "source", "credit")},
                         error=str(exc),

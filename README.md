@@ -15,8 +15,8 @@ Start with the [Python setup and commands](examples/python/README.md):
 
 ```sh
 cd examples/python
-python3 demo.py configure
-python3 receipts.py --profile minimal --output receipt-output
+python3 -m basic_demo configure
+python3 -m receipt_demo --profile minimal --output receipt-output
 ```
 
 The launcher uses the Python standard library. Agent dependencies are installed
@@ -27,7 +27,9 @@ inference settings, and run commands.
 
 ```text
 examples/
-  python/                  Python implementation, dependencies, configuration, and tests
+  python/                  Shared sandbox client, configuration, and development tools
+    receipt_demo/          Receipt launcher, agents, dependencies, docs, and tests
+    basic_demo/            Smoke/tool launcher, agent, docs, and tests
 fixtures/
   receipts/                Shared inputs, provenance, expected behaviors, and asset tools
 docs/
@@ -56,6 +58,6 @@ examples/python/.venv/bin/pre-commit run --all-files --show-diff-on-failure
 ```
 
 Add a language under `examples/<language>/` when its implementation starts, with
-its own README, dependencies, and tests. Add SDK subfolders only when a language
-has multiple implementations. Keep shared fixtures and contract changes at the
-repository root.
+its own README, dependencies, and tests. Put each example in a dedicated folder
+within its language. Keep shared fixtures and contract changes at the repository
+root.

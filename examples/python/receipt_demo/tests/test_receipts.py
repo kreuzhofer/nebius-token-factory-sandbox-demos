@@ -9,17 +9,20 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pypdfium2 as pdfium
+from nebius_sandbox import SandboxClient
 from pydantic import ValidationError
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
+
+from receipt_demo.__main__ import FIXTURES, inputs_for_run
 from receipt_demo.agents import ReceiptAgent, ReportAgent
+from receipt_demo.artifacts import retrieve_result
 from receipt_demo.documents import prepare
 from receipt_demo.models import Decisions, DuplicateGroup, Receipt
 from receipt_demo.reconcile import reconcile
-from receipts import FIXTURES, inputs_for_run
-from sandbox_jobs import SandboxJobs, retrieve_result
+from receipt_demo.sandbox import submit_worker
 
 
 def receipt(key, total="10.00", currency="EUR", **kwargs):
@@ -409,10 +412,10 @@ class WorkflowTests(unittest.IsolatedAsyncioTestCase):
 
 class TransferTests(unittest.TestCase):
     def test_binary_upload_checksum_and_download_path(self):
-        api = SandboxJobs("test", "project")
+        api = SandboxClient("test", "project")
         data = b"\x00\xffbinary"
         with patch.object(
-            api,
+            api._http,
             "transfer",
             return_value=json.dumps(
                 {"uuid": "id", "sha256": hashlib.sha256(data).hexdigest()}
@@ -420,7 +423,7 @@ class TransferTests(unittest.TestCase):
         ) as transfer:
             self.assertEqual(api.upload(data), {"uuid": "id", "mode": "0600"})
             transfer.assert_called_once_with("POST", "/files", data, "application/octet-stream")
-        with patch.object(api, "transfer", return_value=data) as transfer:
+        with patch.object(api._http, "transfer", return_value=data) as transfer:
             self.assertEqual(api.download("image", "/app/a b.pdf"), data)
             self.assertEqual(
                 transfer.call_args.args[1], "/inspect/image/download?path=%2Fapp%2Fa+b.pdf"
@@ -439,7 +442,7 @@ class TransferTests(unittest.TestCase):
                 for name, raw in data.items()
             },
         }
-        api = SandboxJobs("test", "project")
+        api = SandboxClient("test", "project")
 
         def download(image, path):
             return (
@@ -465,22 +468,17 @@ class TransferTests(unittest.TestCase):
             self.assertFalse((Path(directory) / "report.json").exists())
 
     def test_job_retains_output_without_preserving_environment(self):
-        api = SandboxJobs("test", "project")
-        completed = {
-            "result_image_uuid": "result",
-            "metadata": {"result": {"state": {"exit_code": 0}}},
-        }
-        with (
-            patch.object(api, "request", return_value={"uuid": "job"}) as request,
-            patch.object(api, "wait", return_value=completed),
-        ):
+        api = SandboxClient("test", "project")
+        with patch.object(api._http, "request", return_value={"uuid": "job"}) as request:
             self.assertEqual(
-                api.run("base", {}, "print(1)", {"NEBIUS_API_KEY": "secret"}, 300),
-                ("job", "result"),
+                submit_worker(api, "base", {}, {"NEBIUS_API_KEY": "secret"}, 300), "job"
             )
             body = request.call_args.args[2]
             self.assertFalse(body["disposable"])
             self.assertFalse(body["preserve_env"])
+            self.assertEqual(body["cwd"], "/app")
+            self.assertEqual(body["command"], "/usr/local/bin/python3")
+            self.assertEqual(body["env"]["RECEIPT_JOB_TIMEOUT"], "300")
             self.assertNotIn("secret", body["stdin"]["value"])
 
 
