@@ -51,6 +51,19 @@ keeps test results separate from the agent's claim of success.
 `proof.json` records both task outcomes and independent validation results.
 The command exits nonzero if either task or validation fails.
 
+## Run a coding example
+
+```sh
+python3 -m codingagent_demo example create \
+  --runtime coding-runtime/runtime.json \
+  --output coding-output-create
+```
+
+Create uploads a CSV and asks the agent to write and execute its summary script.
+The returned archive is unpacked only inside a separate validation sandbox.
+`example.json` records the task outcome and independent checks; the command
+exits nonzero if either fails. See [live results](RESULTS.md).
+
 ## Run your own task
 
 ```sh

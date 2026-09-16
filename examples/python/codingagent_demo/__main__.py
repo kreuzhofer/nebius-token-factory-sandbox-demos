@@ -8,6 +8,7 @@ from configuration import SandboxConfig, load_env
 from nebius_sandbox import SandboxClient
 
 from . import AgentConfig, build_runtime, run_task
+from .examples import STAGES, run_example
 from .proof import run_proof
 from .runtime import MODEL
 
@@ -46,6 +47,13 @@ def main():
     proof_image.add_argument("--runtime", type=Path)
     proof.add_argument("--model")
     proof.add_argument("--output", required=True, type=Path)
+    example = commands.add_parser("example", help="Run a coding example with independent checks")
+    example.add_argument("stage", choices=STAGES)
+    example_image = example.add_mutually_exclusive_group(required=True)
+    example_image.add_argument("--image")
+    example_image.add_argument("--runtime", type=Path)
+    example.add_argument("--model")
+    example.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     values = load_env(args.env_file)
     config = SandboxConfig.from_env(values)
@@ -65,8 +73,12 @@ def main():
     image = args.image or json.loads(args.runtime.read_text())["image"]
     if not image:
         raise ValueError("Runtime build has no completed image")
-    if args.command == "proof":
-        result = run_proof(client, inference, image, args.output)
+    if args.command in {"proof", "example"}:
+        result = (
+            run_proof(client, inference, image, args.output)
+            if args.command == "proof"
+            else run_example(client, inference, image, args.stage, args.output)
+        )
         print(json.dumps(result, indent=2))
         if not result["passed"]:
             raise SystemExit(1)
