@@ -16,13 +16,14 @@ repos:
     rev: v0.16.7
     hooks:
       - id: ruff-check
-        args: [--fix]
+        args: [--config, examples/python/pyproject.toml, --fix]
       - id: ruff-format
+        args: [--config, examples/python/pyproject.toml]
   - repo: local
     hooks:
       - id: tests
         name: Python tests
-        entry: .venv/bin/python -m unittest discover -q
+        entry: examples/python/.venv/bin/python -m unittest discover -s examples/python/tests -t examples/python -q
         language: system
         pass_filenames: false
         always_run: true

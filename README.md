@@ -1,155 +1,61 @@
 # Nebius Token Factory Sandbox Demos
 
-A Python standard-library example of OCI-image execution with VM isolation through Nebius Token Factory Sandboxes. Python 3.10+ recommended; no pip dependencies or Docker daemon needed.
+Examples showing how to build and host agents in Nebius Sandboxes and use Token
+Factory for inference. The receipt demo starts a coordinator, fans out one sandbox
+job per receipt, and launches a report agent. The coordinator returns the final
+JSON/PDF or errors. Flags and document failures are automated outcomes.
 
-## Status
+## Examples
 
-The basic smoke/tool examples use the Python standard library. The receipt demo
-adds three Pydantic AI agents: a coordinator, a receipt agent run once per input,
-and a report agent. Receipt agents run concurrently in separate sandboxes, followed
-by a report sandbox. All inference goes through Token Factory.
-The coordinator returns an automated expense report as JSON and PDF.
+| Language | Implementation | Status |
+| --- | --- | --- |
+| [Python](examples/python/README.md) | Pydantic AI agents, sandbox orchestration, JSON/PDF generation, and small smoke/tool examples | Implemented |
 
-## Receipt agents
-
-After `python3 demo.py configure`, run:
-
-```sh
-python3 receipts.py --profile minimal --output receipt-output
-# Default 14-input batch: receipt fan-out followed by a report sandbox:
-python3 receipts.py --concurrency 3 --output receipt-output-demo
-# Or supply your own files:
-python3 receipts.py receipt.jpg other-receipt.pdf --output receipt-output-custom
-```
-
-No local pip install or Docker daemon is needed to launch the workflow. The job
-installs pinned Python dependencies inside its Python 3.12 sandbox. Model IDs and
-endpoints are configurable in `.env`; see [the receipt demo guide](docs/receipt-demo.md)
-for the agent flow, configuration, JSON contract, limits, and verification.
-
-## Getting started
-
-Clone the repository and enter it:
+Start with the [Python setup and commands](examples/python/README.md):
 
 ```sh
-git clone https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos.git
-cd nebius-token-factory-sandbox-demos
-```
-
-You need a Nebius API key and a Project ID with sandbox access. The agent example
-also needs access to a Token Factory model that supports tool calling.
-
-
-```sh
+cd examples/python
 python3 demo.py configure
-python3 demo.py images
-python3 demo.py smoke
-python3 demo.py models
-# Set NEBIUS_MODEL in .env to an available model supporting chat tool calling.
-python3 demo.py agent --image IMAGE_UUID_PRINTED_BY_SMOKE
+python3 receipts.py --profile minimal --output receipt-output
 ```
 
-`configure` uses hidden prompts for tokens and creates a gitignored `.env` with mode 0600. Alternatively set the variables in `.env.example` in your environment. The sandbox token falls back to NEBIUS_API_KEY; the Project header comes from CONTREE_PROJECT. Sandbox and inference credentials can differ. The public sandbox API documents bearer authentication plus a Project header; sandbox access must be enabled for the selected project.
+The launcher uses the Python standard library. Agent dependencies are installed
+inside the sandboxes. Each example documents its own development environment,
+inference settings, and run commands.
 
-Without `--image` or CONTREE_IMAGE, a run imports `docker.io/library/python:3.12-slim` privately, then prints the resulting image UUID for reuse. An existing image must contain `/usr/local/bin/python3`. `images` displays the first 100 public images; it does not guarantee those images include Python. `models` lists available inference IDs; tool support needs live verification. `all` runs both stages, requiring inference settings up front.
+## Repository layout
 
-## What runs where
+```text
+examples/
+  python/                  Python implementation, dependencies, configuration, and tests
+fixtures/
+  receipts/                Shared inputs, provenance, expected behaviors, and asset tools
+docs/
+  agents/                  Repository-wide engineering instructions
+  receipt-contract.md      Shared JSON fields and automated outcome meanings
+  receipt-demo.md          Shared orchestration flow and report layout
+.github/workflows/         Repository CI
+.pre-commit-config.yaml    Hook orchestration across language examples
+```
 
-Local demo.py → sandbox HTTPS API → OCI Python filesystem in a microVM → agent.py → Token Factory chat completions → Python subprocess tool inside the microVM.
+Each language owns its complete workflow, including report generation. Languages
+share the [receipt fixtures](fixtures/receipts/README.md),
+[contract](docs/receipt-contract.md), and [demo behavior](docs/receipt-demo.md).
+Generated prose and PDF bytes need not match. Fixture-generation tools are only
+needed when changing assets; ordinary runs use the checked-in receipts.
 
-* `smoke`: networking disabled; computes and verifies a sum of squares, writes `/tmp/smoke.json`, and returns stdout. A checkpoint is retained.
-* `agent`: networking enabled; asks a model to calculate primes using a Python tool, sends tool results back, and prints the final answer. Limited to five inference turns, 1,200 output tokens per turn, 15 seconds per Python tool, and 360 seconds of sandbox execution. This run is disposable and does not preserve environment variables.
+## Development
 
-Commands are submitted as operations. Each execution gets its own VM; this example does not keep a long-lived VM between stages. Filesystem checkpointing is distinct from keeping a live Python process. The import and smoke checkpoint may remain under beta retention rules. No persistent tag is created.
-
-The inference key is passed in the agent execution environment, removed from the agent's environment before tools run, and excluded from subprocess environments. It is still sent to the sandbox service as request metadata; disposable execution is not a guarantee of metadata deletion. Use a scoped test key. This tiny agent is an execution demonstration, not a hardened adversarial agent framework.
-
-## SDK versus HTTPS — checked September 11, 2026
-
-There is an official SDK: `contree-sdk`, alongside `contree-client` and a CLI. The service is explicitly beta. At inspection, PyPI served contree-sdk **0.3.6** and contree-client **0.4.0**. The installed SDK constructor was `ContreeSync(config=None, *, base_url=None, token=None)`, while the current guide describes injecting a `contree_client` transport. The documented example therefore does not match that published SDK version.
-
-For this small test, direct HTTPS is the most transparent option: POST /images/import, POST /instances, GET /operations/{id}, DELETE /operations/{id}. The generated contree-client is another reasonable option, especially if you need broad API coverage. Reconsider the high-level SDK when its release and docs align.
-
-Sources:
-
-- [Sandbox overview and beta status](https://docs.tokenfactory.nebius.com/sandboxes/overview)
-- [SDK setup](https://docs.tokenfactory.nebius.com/sandboxes/sdk/python_sdk/getting-started)
-- [SDK release](https://pypi.org/project/contree-sdk/)
-- [Generated client release](https://pypi.org/project/contree-client/)
-- [Authentication](https://docs.tokenfactory.nebius.com/sandboxes/cli/tutorial/installation)
-- [Spawn API](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance)
-- [Operation status](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/operations/get-an-operation-status)
-- [Inference quickstart](https://docs.tokenfactory.nebius.com/quickstart)
-
-## Verification
-
-For development, use Python 3.12 and install the pinned tools and test dependencies:
+Follow the development setup in the example's README. Root hooks and CI run the
+applicable formatters, linters, file checks, and tests; language-specific tool
+configuration and dependencies live with the example. Install hooks once in each
+checkout. For Python, after its environment is installed:
 
 ```sh
-python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/pre-commit install --install-hooks
+examples/python/.venv/bin/pre-commit run --all-files --show-diff-on-failure
 ```
 
-Ruff formats Python, sorts imports, and checks common errors using `pyproject.toml`.
-The pre-commit hook checks staged files for formatting, lint, invalid YAML/JSON,
-merge markers, and whitespace, then runs the full local test suite. If a hook fixes
-files, review and stage those changes before committing again. The tests use fake
-models and API responses; no credentials or live sandbox calls are needed.
-
-```sh
-# Apply Python fixes and formatting:
-.venv/bin/ruff check --fix .
-.venv/bin/ruff format .
-# Run the same checks as CI, including tests:
-.venv/bin/pre-commit run --all-files --show-diff-on-failure
-```
-
-GitHub Actions runs the same hook configuration on pull requests and pushes to
-`main`. Install hooks once in each new checkout. Development dependencies are
-separate from the sandbox runtime requirements; the standard-library launcher
-still needs no local pip installation to run demos.
-
-```sh
-python3 -m unittest -v test_demo
-python3 agent.py smoke
-```
-
-Local tests cover polling, deadline cancellation, process failure, disposable execution settings and output decoding. They use mocked API responses. Live verification passed on September 11, 2026 using the same Nebius API key for sandboxes and inference, plus the sandbox Project header. The smoke run returned 385. With Qwen/Qwen3-30B-A3B-Instruct-2507, the in-sandbox agent executed Python, printed all 25 primes below 100 and their sum 1060, and returned the matching final answer. The model initially omitted print statements and corrected this on a subsequent tool call. Normal process termination returned signal=-1; the runner accepts that sentinel. Requests that create operations are not automatically retried, avoiding accidental duplicate launches after an ambiguous response. Local timeouts/interrupts attempt cancellation; server execution timeouts provide a separate bound.
-
-Reuse the image UUID printed by your own smoke run:
-
-```sh
-NEBIUS_MODEL=Qwen/Qwen3-30B-A3B-Instruct-2507 python3 demo.py all --image YOUR_IMAGE_UUID
-```
-
-## Shared receipt inputs
-
-[The receipt fixture set](fixtures/receipts/README.md) contains 12 distinct
-public/synthetic receipts plus duplicate and damaged-file variants for the
-receipt-agent example. It includes provenance, lightweight checks, and a generator
-for the synthetic files.
-
-List the 14-input demo set without installing additional dependencies:
-
-```sh
-python3 fixtures/receipts/check.py --list demo
-```
-
-## Project files
-
-| File | Purpose |
-| --- | --- |
-| `demo.py` | Configuration, image import, sandbox launch, and operation polling |
-| `agent.py` | Smoke task and LLM/tool loop executed inside the sandbox |
-| `test_demo.py` | Local tests with mocked sandbox responses |
-| `receipts.py` | One-command receipt launcher and coordinator result retrieval |
-| `sandbox_jobs.py` | Shared HTTPS job, file upload, and artifact download helpers |
-| `receipt_demo/` | Coordinator, receipt, and report agents plus their ordinary Python tools |
-| `test_receipts.py` | Accounting, document, agent workflow, and transfer checks using fake models |
-| `test_orchestration.py` | Bounded fan-out, child failures, cancellation, and report handoff checks |
-| `.env.example` | Credential and model configuration template |
-
-## License
-
-[MIT](LICENSE), copyright 2026 Daniel Kreuzhofer.
+Add a language under `examples/<language>/` when its implementation starts, with
+its own README, dependencies, and tests. Add SDK subfolders only when a language
+has multiple implementations. Keep shared fixtures and contract changes at the
+repository root.
