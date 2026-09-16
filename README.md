@@ -4,6 +4,8 @@ Examples showing how to build and host agents in Nebius Sandboxes and use Token
 Factory for inference. The receipt demo starts a coordinator, fans out one sandbox
 job per receipt, and launches a report agent. The coordinator returns the final
 JSON/PDF or errors. Flags and document failures are automated outcomes.
+The [coding demo](examples/python/codingagent_demo/README.md) runs OpenCode with
+Token Factory inference in fresh sandboxes created from a reusable runtime image.
 
 ## Examples
 
@@ -30,6 +32,7 @@ examples/
   python/                  Shared sandbox client, configuration, and development tools
     receipt_demo/          Receipt launcher, agents, dependencies, docs, and tests
     basic_demo/            Smoke/tool launcher, agent, docs, and tests
+    codingagent_demo/      OpenCode runtime image, task helper, proof, docs, and tests
 fixtures/
   receipts/                Shared inputs, provenance, expected behaviors, and asset tools
 docs/

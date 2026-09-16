@@ -8,6 +8,7 @@ configuration loading.
 | --- | --- | --- |
 | Receipt expense reporting | `python3 -m receipt_demo --profile minimal` | [Receipt demo](receipt_demo/README.md) |
 | Sandbox smoke and Python tool | `python3 -m basic_demo smoke` / `python3 -m basic_demo agent` | [Basic demo](basic_demo/README.md) |
+| OpenCode coding agent | `python3 -m codingagent_demo --help` | [Coding demo](codingagent_demo/README.md) |
 
 ## Setup
 
@@ -34,13 +35,14 @@ configuration.py       Local settings and sandbox credentials
 tests/                 Shared client and configuration tests
 receipt_demo/          Receipt launcher, workers, inference settings, reports, and tests
 basic_demo/            Smoke/tool launcher, sandbox agent, and tests
+codingagent_demo/      Reusable OpenCode image, task helper, compatibility proof, and tests
 pyproject.toml         Python lint/format rules
 requirements-dev.txt   Development dependencies across Python examples
 ```
 
 The sandbox client knows no receipt paths or agent roles. Each example owns its
-packaging and orchestration. Add another example, such as `codingagent_demo/`,
-as a sibling when its implementation starts.
+packaging and orchestration. Add further examples as siblings when their
+implementation starts.
 
 The client owns image import completion (`import_image_and_wait`) and validation
 of retained filesystems (`Operation.require_image`). Commands whose output files

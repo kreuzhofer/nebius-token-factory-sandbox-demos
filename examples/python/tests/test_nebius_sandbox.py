@@ -97,6 +97,48 @@ class SandboxClientTests(unittest.TestCase):
         ):
             self.assertEqual(self.client.wait("id", 5).status, "SUCCESS")
 
+    def test_unchecked_wait_preserves_failed_operation_and_reports_status_changes(self):
+        statuses = []
+        with (
+            patch.object(
+                self.client._http,
+                "request",
+                side_effect=[
+                    {"status": "EXECUTING"},
+                    {"status": "EXECUTING"},
+                    {"status": "FAILED"},
+                ],
+            ),
+            patch("nebius_sandbox.time.sleep"),
+        ):
+            operation = self.client.wait("job", 5, check=False, on_status=statuses.append)
+        self.assertEqual(operation.status, "FAILED")
+        self.assertEqual(statuses, ["EXECUTING", "FAILED"])
+
+    def test_unchecked_execution_exposes_timeout_without_calling_it_successful(self):
+        operation = Operation.from_response(
+            "job",
+            {
+                "status": "SUCCESS",
+                "metadata": {
+                    "result": {"state": {"exit_code": -1, "timed_out": True, "signal": 9}}
+                },
+            },
+        )
+        result = operation.execution_result(check=False)
+        self.assertTrue(result.timed_out)
+        self.assertEqual(result.signal, 9)
+        self.assertFalse(result.successful)
+
+    def test_limits_only_returns_limit_values(self):
+        with patch.object(
+            self.client._http,
+            "request",
+            return_value={"token": "private-identity", "limits": {"instance_max_timeout": 3600}},
+        ) as send:
+            self.assertEqual(self.client.limits(), {"instance_max_timeout": 3600})
+        send.assert_called_once_with("GET", "/whoami")
+
     def test_import_completion_requires_a_successful_retained_image(self):
         for final, expected, error in (
             ({"status": "SUCCESS", "result": {"image": "ready"}}, "ready", None),

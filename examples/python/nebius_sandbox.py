@@ -30,6 +30,13 @@ class ExecutionResult:
     stdout: str
     stderr: str
     image: str | None
+    exit_code: int | None = None
+    timed_out: bool = False
+    signal: int | None = None
+
+    @property
+    def successful(self):
+        return self.exit_code == 0 and not self.timed_out and self.signal in (None, -1, 0)
 
 
 def _decode(stream):
@@ -72,11 +79,14 @@ class Operation:
             raise RuntimeError(f"Operation {self.id} returned no filesystem image")
         return self.image
 
-    def execution_result(self, *, require_image=False):
-        """Validate process success; optionally require a filesystem for artifact retrieval."""
+    def execution_result(self, *, require_image=False, check=True):
+        """Read output from a successful operation; check=False retains failed process state.
+
+        require_image=True additionally requires a filesystem for artifact retrieval.
+        """
         self.require_success()
         state = self._result.get("state") or {}
-        if (
+        if check and (
             state.get("timed_out")
             or state.get("signal", -1) not in (None, -1, 0)
             or state.get("exit_code") != 0
@@ -86,6 +96,9 @@ class Operation:
             _decode(self._result.get("stdout") or {}),
             _decode(self._result.get("stderr") or {}),
             self.require_image() if require_image else self.image,
+            state.get("exit_code"),
+            bool(state.get("timed_out")),
+            state.get("signal"),
         )
 
 
@@ -97,6 +110,10 @@ class SandboxClient:
 
     def list_images(self, *, limit=100, offset=0):
         return self._http.request("GET", "/images?" + urlencode({"limit": limit, "offset": offset}))
+
+    def limits(self):
+        """Return the configured token limits without exposing token identity or credentials."""
+        return self._http.request("GET", "/whoami").get("limits") or {}
 
     def import_image(self, registry_url, *, timeout=300):
         operation = self._http.request(
@@ -167,14 +184,23 @@ class SandboxClient:
     def cancel(self, operation_id):
         self._http.request("DELETE", "/operations/" + quote(operation_id, safe=""))
 
-    def wait(self, operation_id, seconds):
-        """Poll to completion; deadlines/interrupts cancel, connection failures do not resubmit."""
+    def wait(self, operation_id, seconds, *, check=True, on_status=None):
+        """Poll to completion; deadlines/interrupts cancel, connection failures do not resubmit.
+
+        check=False returns failed/cancelled operations for callers that report
+        their own outcomes. on_status receives each change in operation status.
+        """
         deadline = time.monotonic() + seconds
+        previous = None
         try:
             while time.monotonic() < deadline:
                 operation = self.get_operation(operation_id)
+                if on_status and operation.status != previous:
+                    on_status(operation.status)
+                    previous = operation.status
                 if operation.done:
-                    operation.require_success()
+                    if check:
+                        operation.require_success()
                     return operation
                 time.sleep(1)
             raise TimeoutError(f"Operation {operation_id} exceeded local deadline")
