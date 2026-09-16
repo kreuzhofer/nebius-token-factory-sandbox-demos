@@ -42,6 +42,12 @@ The sandbox client knows no receipt paths or agent roles. Each example owns its
 packaging and orchestration. Add another example, such as `codingagent_demo/`,
 as a sibling when its implementation starts.
 
+The client owns image import completion (`import_image_and_wait`) and validation
+of retained filesystems (`Operation.require_image`). Commands whose output files
+must be retrieved use `execution_result(require_image=True)`; disposable commands
+can succeed without an image. Examples choose their runtime image, package their
+own files, configure their workers, and print progress and execution output.
+
 The client's submission `timeout` is the server-side execution limit; the
 `wait()` deadline controls local polling and attempts cancellation when exceeded.
 See the [spawn reference](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/instances/spawn-a-new-container-instance).

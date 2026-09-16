@@ -9,7 +9,7 @@ from nebius_sandbox import SandboxClient
 
 from receipt_demo.artifacts import retrieve_result
 from receipt_demo.configuration import InferenceConfig
-from receipt_demo.sandbox import python_image, submit_worker, upload_code, worker_image
+from receipt_demo.sandbox import submit_worker, upload_code
 
 FIXTURES = ROOT.parent.parent / "fixtures" / "receipts"
 
@@ -86,7 +86,11 @@ def main():
             raise ValueError("Supply between 1 and 30 receipts")
         if sum(path.stat().st_size for _, path, _ in sources) > 50 * 1024 * 1024:
             raise ValueError("Receipt inputs exceed the 50 MiB demo limit")
-        image = python_image(api, args.image or values.get("CONTREE_IMAGE"))
+        image = args.image or values.get("CONTREE_IMAGE")
+        if not image:
+            print("Importing Python runtime image", flush=True)
+            image = api.import_image_and_wait("docker://docker.io/library/python:3.12-slim")
+            print(f"Reuse base image with --image {image}", flush=True)
         files, inputs = {}, []
         for receipt_id, path, credit in sources:
             remote = "/app/inputs/" + receipt_id + path.suffix.lower()
@@ -112,7 +116,11 @@ def main():
         (args.output / "job.json").write_text(
             json.dumps({"operation_id": operation, "image": None}, indent=2)
         )
-        image = worker_image(api.wait(operation, args.timeout + 120))
+        result = api.wait(operation, args.timeout + 120).execution_result(require_image=True)
+        for output in (result.stdout, result.stderr):
+            if output:
+                print(output, end="" if output.endswith("\n") else "\n", flush=True)
+        image = result.image
         (args.output / "job.json").write_text(
             json.dumps({"operation_id": operation, "image": image}, indent=2)
         )

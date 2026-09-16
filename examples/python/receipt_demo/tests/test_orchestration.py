@@ -156,7 +156,15 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
             with (
                 patch(
                     "sys.argv",
-                    ["receipt_demo", "--profile", "minimal", "--output", directory],
+                    [
+                        "receipt_demo",
+                        "--profile",
+                        "minimal",
+                        "--image",
+                        "base",
+                        "--output",
+                        directory,
+                    ],
                 ),
                 patch(
                     "receipt_demo.__main__.load_env",
@@ -167,7 +175,6 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
                     },
                 ),
                 patch("receipt_demo.__main__.SandboxClient", return_value=api),
-                patch("receipt_demo.__main__.python_image", return_value="base"),
                 patch.object(api, "submit", return_value="parent") as submit,
                 patch.object(
                     api,
@@ -206,11 +213,18 @@ class OrchestrationTests(unittest.IsolatedAsyncioTestCase):
             with (
                 patch(
                     "sys.argv",
-                    ["receipt_demo", "--profile", "minimal", "--output", directory],
+                    [
+                        "receipt_demo",
+                        "--profile",
+                        "minimal",
+                        "--image",
+                        "base",
+                        "--output",
+                        directory,
+                    ],
                 ),
                 patch("receipt_demo.__main__.load_env", return_value={"NEBIUS_API_KEY": "test"}),
                 patch("receipt_demo.__main__.SandboxClient", return_value=api),
-                patch("receipt_demo.__main__.python_image", return_value="base"),
                 patch.object(api, "submit", return_value="known-job") as submit,
                 patch.object(api, "wait", side_effect=ConnectionError("poll interrupted")),
                 self.assertRaises(ConnectionError),

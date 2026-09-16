@@ -1,4 +1,4 @@
-"""Python receipt job packaging and runtime choices, shared by both launchers."""
+"""Receipt-specific packaging, dependency bootstrap, and worker runtime settings."""
 
 from pathlib import Path
 
@@ -35,18 +35,6 @@ def upload_code(client, root):
     }
 
 
-def python_image(client, image=None):
-    if image:
-        return image
-    operation_id = client.import_image("docker://docker.io/library/python:3.12-slim")
-    print(f"Image import operation: {operation_id}", flush=True)
-    operation = client.wait(operation_id, 360)
-    if not operation.image:
-        raise RuntimeError("Image import returned no image")
-    print(f"Reuse base image with --image {operation.image}", flush=True)
-    return operation.image
-
-
 def submit_worker(client, image, files, env, timeout):
     return client.submit(
         image,
@@ -62,13 +50,3 @@ def submit_worker(client, image, files, env, timeout):
         max_layer_bytes=1073741824,
         output_limit=1048576,
     )
-
-
-def worker_image(operation):
-    result = operation.execution_result()
-    for output in (result.stdout, result.stderr):
-        if output:
-            print(output, end="" if output.endswith("\n") else "\n", flush=True)
-    if not result.image:
-        raise RuntimeError(f"Job {operation.id} returned no filesystem image")
-    return result.image

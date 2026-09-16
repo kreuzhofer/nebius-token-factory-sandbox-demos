@@ -65,7 +65,15 @@ class Operation:
         if self.status != "SUCCESS":
             raise RuntimeError(f"Operation {self.id} is not complete")
 
-    def execution_result(self):
+    def require_image(self):
+        """Return a completed operation's retained image, including image imports."""
+        self.require_success()
+        if not self.image:
+            raise RuntimeError(f"Operation {self.id} returned no filesystem image")
+        return self.image
+
+    def execution_result(self, *, require_image=False):
+        """Validate process success; optionally require a filesystem for artifact retrieval."""
         self.require_success()
         state = self._result.get("state") or {}
         if (
@@ -77,7 +85,7 @@ class Operation:
         return ExecutionResult(
             _decode(self._result.get("stdout") or {}),
             _decode(self._result.get("stderr") or {}),
-            self.image,
+            self.require_image() if require_image else self.image,
         )
 
 
@@ -95,6 +103,15 @@ class SandboxClient:
             "POST", "/images/import", {"registry": {"url": registry_url}, "timeout": timeout}
         )
         return operation["uuid"]
+
+    def import_image_and_wait(self, registry_url, *, timeout=300, wait_timeout=360):
+        """Import a caller-selected runtime and return its image after successful completion.
+
+        Use import_image() and wait() separately when the operation ID is needed
+        before completion. Execution and local polling deadlines are independent.
+        """
+        operation_id = self.import_image(registry_url, timeout=timeout)
+        return self.wait(operation_id, wait_timeout).require_image()
 
     def upload(self, data, *, mode="0600"):
         result = json.loads(self._http.transfer("POST", "/files", data, "application/octet-stream"))

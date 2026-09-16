@@ -97,6 +97,40 @@ class SandboxClientTests(unittest.TestCase):
         ):
             self.assertEqual(self.client.wait("id", 5).status, "SUCCESS")
 
+    def test_import_completion_requires_a_successful_retained_image(self):
+        for final, expected, error in (
+            ({"status": "SUCCESS", "result": {"image": "ready"}}, "ready", None),
+            ({"status": "SUCCESS"}, None, RuntimeError),
+            ({"status": "FAILED", "result_image_uuid": "partial"}, None, OperationFailed),
+        ):
+            with (
+                self.subTest(final=final),
+                patch.object(
+                    self.client._http,
+                    "request",
+                    side_effect=[{"uuid": "import-job"}, {"status": "PENDING"}, final],
+                ) as send,
+                patch("nebius_sandbox.time.sleep"),
+            ):
+                if error:
+                    with self.assertRaises(error):
+                        self.client.import_image_and_wait("docker://example/runtime", timeout=20)
+                else:
+                    self.assertEqual(
+                        self.client.import_image_and_wait("docker://example/runtime", timeout=20),
+                        expected,
+                    )
+                self.assertEqual(send.call_args_list[0].args[2]["timeout"], 20)
+                self.assertEqual(send.call_args_list[-1].args, ("GET", "/operations/import-job"))
+
+    def test_import_wait_deadline_cancels_known_import(self):
+        with patch.object(
+            self.client._http, "request", return_value={"uuid": "import-job"}
+        ) as send:
+            with self.assertRaises(TimeoutError):
+                self.client.import_image_and_wait("docker://example/runtime", wait_timeout=-1)
+            self.assertEqual(send.call_args.args, ("DELETE", "/operations/import-job"))
+
     def test_deadline_cancels(self):
         with patch.object(self.client._http, "request") as send:
             with self.assertRaises(TimeoutError):
@@ -155,6 +189,21 @@ class SandboxClientTests(unittest.TestCase):
         payload["metadata"]["result"]["stdout"]["truncated"] = True
         with self.assertRaisesRegex(RuntimeError, "truncated"):
             Operation.from_response("job", payload).execution_result()
+
+    def test_artifact_execution_requires_image_but_disposable_execution_does_not(self):
+        payload = {"status": "SUCCESS", "metadata": {"result": {"state": {"exit_code": 0}}}}
+        operation = Operation.from_response("job", payload)
+        self.assertIsNone(operation.execution_result().image)
+        with self.assertRaisesRegex(RuntimeError, "job.*no filesystem image"):
+            operation.execution_result(require_image=True)
+        payload["result_image_uuid"] = "retained"
+        self.assertEqual(
+            Operation.from_response("job", payload).execution_result(require_image=True).image,
+            "retained",
+        )
+        payload["metadata"]["result"]["state"]["exit_code"] = 1
+        with self.assertRaises(ExecutionFailed):
+            Operation.from_response("job", payload).execution_result(require_image=True)
 
     def test_upload_rejects_checksum_mismatch(self):
         with patch.object(

@@ -10,7 +10,7 @@ from nebius_sandbox import ExecutionFailed, OperationFailed
 from .agents import log
 from .artifacts import retrieve_result
 from .models import Receipt
-from .sandbox import submit_worker, upload_code, worker_image
+from .sandbox import submit_worker, upload_code
 
 
 class SandboxExecution:
@@ -82,7 +82,11 @@ class SandboxExecution:
                     self.active.discard(operation)
                     trace["finished_at"] = time.time()
                     trace["status"] = completed.status
-                    image = worker_image(completed)
+                    result = completed.execution_result(require_image=True)
+                    for output in (result.stdout, result.stderr):
+                        if output:
+                            print(output, end="" if output.endswith("\n") else "\n", flush=True)
+                    image = result.image
                     trace["image"] = image
                     log("child.completed", **trace)
                     return image

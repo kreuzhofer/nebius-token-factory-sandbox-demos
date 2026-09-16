@@ -77,11 +77,8 @@ def main():
             env[name] = values[name]
     image = args.image or values.get("CONTREE_IMAGE")
     if not image:
-        operation_id = api.import_image("docker://docker.io/library/python:3.12-slim")
-        print(f"Image import operation: {operation_id}", flush=True)
-        image = api.wait(operation_id, 360).image
-        if not image:
-            raise RuntimeError("Import succeeded without a result image UUID")
+        print("Importing Python runtime image", flush=True)
+        image = api.import_image_and_wait("docker://docker.io/library/python:3.12-slim")
         print(f"Reuse image with --image {image}", flush=True)
     if args.command in ("smoke", "all"):
         execute(api, image, "smoke", {})
