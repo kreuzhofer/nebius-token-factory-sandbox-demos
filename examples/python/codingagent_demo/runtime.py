@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .build_image import VERSION as OPENCODE_VERSION
 
-MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
+MODEL = "moonshotai/Kimi-K2.7-Code"
 
 
 def build_runtime(client, output, *, base_image=None):

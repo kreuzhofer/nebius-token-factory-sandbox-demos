@@ -8,7 +8,8 @@ from configuration import SandboxConfig, load_env
 from nebius_sandbox import SandboxClient
 
 from . import AgentConfig, build_runtime, run_task
-from .examples import STAGES, run_example
+from .deadline import run_deadline_probe
+from .examples import STAGES, run_example, run_ladder
 from .proof import run_proof
 from .runtime import MODEL
 
@@ -48,7 +49,7 @@ def main():
     proof.add_argument("--model")
     proof.add_argument("--output", required=True, type=Path)
     example = commands.add_parser("example", help="Run a coding example with independent checks")
-    example.add_argument("stage", choices=STAGES)
+    example.add_argument("stage", choices=[*STAGES, "deadline", "all"])
     example_image = example.add_mutually_exclusive_group(required=True)
     example_image.add_argument("--image")
     example_image.add_argument("--runtime", type=Path)
@@ -62,6 +63,15 @@ def main():
         image = build_runtime(client, args.output, base_image=args.base_image)
         print(f"Runtime image: {image}")
         return
+    image = args.image or json.loads(args.runtime.read_text())["image"]
+    if not image:
+        raise ValueError("Runtime build has no completed image")
+    if args.command == "example" and args.stage == "deadline":
+        result = run_deadline_probe(client, image, args.output)
+        print(json.dumps(result, indent=2))
+        if not result["passed"]:
+            raise SystemExit(1)
+        return
     key = values.get("NEBIUS_API_KEY")
     if not key:
         raise ValueError("Set NEBIUS_API_KEY for Token Factory inference")
@@ -70,15 +80,13 @@ def main():
         args.model or values.get("NEBIUS_CODING_MODEL") or MODEL,
         values.get("NEBIUS_BASE_URL") or "https://api.tokenfactory.nebius.com/v1",
     )
-    image = args.image or json.loads(args.runtime.read_text())["image"]
-    if not image:
-        raise ValueError("Runtime build has no completed image")
     if args.command in {"proof", "example"}:
-        result = (
-            run_proof(client, inference, image, args.output)
-            if args.command == "proof"
-            else run_example(client, inference, image, args.stage, args.output)
-        )
+        if args.command == "proof":
+            result = run_proof(client, inference, image, args.output)
+        elif args.stage == "all":
+            result = run_ladder(client, inference, image, args.output)
+        else:
+            result = run_example(client, inference, image, args.stage, args.output)
         print(json.dumps(result, indent=2))
         if not result["passed"]:
             raise SystemExit(1)

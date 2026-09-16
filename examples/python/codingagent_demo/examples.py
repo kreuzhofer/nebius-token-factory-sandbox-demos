@@ -128,3 +128,27 @@ def run_example(client, config, image, stage, output):
     finally:
         save()
     return record
+
+
+def run_ladder(client, config, image, output):
+    """Run stages in order, stopping at the first failed task or check without retrying."""
+    from .deadline import run_deadline_probe
+
+    output = Path(output).resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    record = {"runtime_image": image, "passed": False, "runs": []}
+    try:
+        for stage in ("create", "repair", "extend", "deadline"):
+            result = (
+                run_deadline_probe(client, image, output / stage)
+                if stage == "deadline"
+                else run_example(client, config, image, stage, output / stage)
+            )
+            record["runs"].append(result)
+            (output / "ladder.json").write_text(json.dumps(record, indent=2))
+            if not result["passed"]:
+                return record
+        record["passed"] = True
+    finally:
+        (output / "ladder.json").write_text(json.dumps(record, indent=2))
+    return record

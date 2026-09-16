@@ -5,9 +5,8 @@ workspace archive, and logs. The local launcher uses Python's standard library.
 OpenCode runs inside the sandbox with command/file permissions allowed. Networking
 is explicitly enabled for inference and task dependencies.
 
-This first implementation includes the helper, a reusable runtime-image build,
-and an automated edit-and-test compatibility proof. The larger task progression
-in [TASKS.md](TASKS.md) remains subsequent work.
+The demo includes a reusable runtime-image build, an edit-and-test compatibility
+proof, and the Create, Repair, Extend, and deadline examples in [TASKS.md](TASKS.md).
 
 ## Build the runtime once
 
@@ -70,6 +69,28 @@ The returned archive is unpacked only inside a separate validation sandbox.
 `example.json` records the task outcome and independent checks; the command
 exits nonzero if either fails. See [live results](RESULTS.md).
 
+Run the complete sequence, stopping at the first failed task or check:
+
+```sh
+python3 -m codingagent_demo example all \
+  --runtime coding-runtime/runtime.json \
+  --model moonshotai/Kimi-K2.7-Code \
+  --output coding-output-ladder
+```
+
+`ladder.json` links the per-stage outcomes. No task is automatically retried.
+The Create, Repair, and Extend server caps are 300, 600, and 1800 seconds.
+A model's final response is not a guarantee that its code passes the checks.
+
+Use `example deadline` to run the deterministic timeout probe alone. It needs
+only sandbox credentials: networking is disabled and no inference key is sent.
+The command writes a startup file and archive before sleeping for 60 seconds
+under a 15-second server cap. `deadline.json` reports the confirmed timeout and
+whether that archive could be recovered. It exercises the same workspace-job
+submission, waiting, status, and artifact-recovery path as the coding tasks.
+`process.stdout.log` and `process.stderr.log` retain available process output.
+The probe is a lifecycle check, not a coding task padded with a sleep.
+
 ## Run your own task
 
 ```sh
@@ -88,7 +109,7 @@ name and contents. Symlinks are rejected. `.git`, `.venv`, `__pycache__`,
 `node_modules` and `.env` entries are omitted from input directories.
 Use a new output directory for each run.
 
-The default model is `Qwen/Qwen3-235B-A22B-Instruct-2507`; override it with
+The default model is `moonshotai/Kimi-K2.7-Code`; override it with
 `--model` or `NEBIUS_CODING_MODEL`. Main and auxiliary models use the configured
 Token Factory provider. Only the inference key enters the task sandbox; the
 sandbox API token remains with the launcher. Agent configuration lives outside
@@ -107,7 +128,8 @@ retrieved when the job finishes.
 Each run writes `job.json` as soon as the operation ID is known, followed by
 `result.json`, `workspace.tar.gz`, `events.jsonl` and `stderr.log` when available.
 `result.json` includes status, answer, operation/image IDs, model/runtime versions,
-elapsed time and artifact paths. Downloaded archives are saved without executing
+elapsed time and artifact paths. Elapsed time covers submission, waiting, and
+retrieval; input upload happens before that timer. Downloaded archives are saved without executing
 or extracting their contents on the host.
 
 Completed means the agent finished normally and the archive was retrieved;
@@ -136,8 +158,8 @@ result = run_task(
 
 ## Verified compatibility
 
-On 2026-09-16 the `proof` command passed using OpenCode 1.18.31 and the default
-Token Factory model. Both jobs reused image
+On 2026-09-16 the `proof` command passed using OpenCode 1.18.31 and
+`Qwen/Qwen3-235B-A22B-Instruct-2507` through Token Factory. Both jobs reused image
 `a485428f-a38c-42a5-9e55-ac216fa5b045`, built by operation
 `01a0ac09-6c1b-723e-82a4-c68420c5305e`.
 
