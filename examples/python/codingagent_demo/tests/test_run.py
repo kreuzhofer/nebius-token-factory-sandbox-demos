@@ -185,3 +185,48 @@ class RunTests(unittest.TestCase):
                 timeout=3601,
             )
         self.assertEqual(api.submissions, [])
+
+    def test_unconfirmed_cancellation_is_interrupted_and_never_resubmitted(self):
+        from unittest.mock import MagicMock, patch
+        from urllib.error import URLError
+
+        from nebius_sandbox import SandboxClient
+
+        requests = []
+
+        def respond(request, **options):
+            requests.append((request.method, request.full_url))
+            if request.method == "DELETE":
+                raise URLError("cancellation connection lost")
+            if "/operations/" in request.full_url:
+                raise KeyboardInterrupt
+            if request.full_url.endswith("/whoami"):
+                payload = {"limits": {"instance_max_timeout": 3600}}
+            elif request.full_url.endswith("/files"):
+                payload = {"uuid": "uploaded", "sha256": hashlib.sha256(request.data).hexdigest()}
+            else:
+                payload = {"uuid": "known-job"}
+            response = MagicMock()
+            response.__enter__.return_value.read.return_value = json.dumps(payload).encode()
+            return response
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch("http_transport.urllib.request.urlopen", side_effect=respond),
+            self.assertWarnsRegex(RuntimeWarning, "Cancellation unconfirmed: known-job"),
+        ):
+            result = run_task(
+                SandboxClient("sandbox-secret", base_url="https://sandbox.example/v1"),
+                AgentConfig("inference-secret"),
+                "runtime",
+                "Work",
+                output=Path(directory) / "result",
+            )
+            self.assertEqual(result["status"], "interrupted")
+            self.assertEqual(result["operation_id"], "known-job")
+            saved = json.loads((Path(directory) / "result/job.json").read_text())
+            self.assertEqual(saved["status"], "interrupted")
+        self.assertEqual(
+            sum(method == "POST" and url.endswith("/instances") for method, url in requests), 1
+        )
+        self.assertEqual(sum(method == "DELETE" for method, _ in requests), 1)

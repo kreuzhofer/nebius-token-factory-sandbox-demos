@@ -129,8 +129,8 @@ Each run writes `job.json` as soon as the operation ID is known, followed by
 `result.json`, `workspace.tar.gz`, `events.jsonl` and `stderr.log` when available.
 `result.json` includes status, answer, operation/image IDs, model/runtime versions,
 elapsed time and artifact paths. Elapsed time covers submission, waiting, and
-retrieval; input upload happens before that timer. Downloaded archives are saved without executing
-or extracting their contents on the host.
+retrieval; input upload happens before that timer. Downloaded archives are saved
+without executing or extracting their contents on the host.
 
 Completed means the agent finished normally and the archive was retrieved;
 correctness is a separate check. Failed, timed-out, and confirmed-cancelled jobs

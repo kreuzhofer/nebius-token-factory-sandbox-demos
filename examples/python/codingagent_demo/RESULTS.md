@@ -1,5 +1,29 @@
 # Live example results
 
+## Final complete sequence
+
+`example all` passed at 2026-09-16 23:02 UTC, using `moonshotai/Kimi-K2.7-Code`
+for all coding tasks and the same prepared image. No retries or manual edits
+were needed within this sequence. The deadline stage uses no model.
+
+| Stage | Task elapsed | Task operation | Validation operation | Result |
+| --- | --- | --- | --- | --- |
+| Create | 22.740 s | `01a0ac72-147d-77c7-a580-651e2e92fef5` | `01a0ac72-780b-7571-abeb-d7928903c18b` | Passed |
+| Repair | 49.371 s | `01a0ac72-9943-7717-a221-34adfb7eecfd` | `01a0ac73-6393-72b9-b225-cceac4aacd2f` | Passed |
+| Extend | 95.199 s | `01a0ac73-8ba7-709a-8011-567e8f2705e9` | `01a0ac75-082c-77aa-bc70-245b4b136fd4` | Passed |
+| Deadline | 18.286 s | `01a0ac75-168f-7372-b699-6e0100ef109a` | Not applicable | Confirmed timeout; startup archive recovered |
+
+Task elapsed includes submission, execution, polling, and retrieval. Validation
+has its own 60-second cap. These short runs do not demonstrate execution near
+the 30-minute cap.
+
+Reproduce using the command in [README.md](README.md). The local evidence for
+this development run is `/private/tmp/coding-ladder-final/ladder.json`, with
+per-stage answers, logs, and workspace archives alongside it. These local paths
+are not portable; every new invocation writes its own result directory.
+
+## Earlier development runs
+
 Runs on 2026-09-16 use OpenCode 1.18.31 and prepared runtime image
 `a485428f-a38c-42a5-9e55-ac216fa5b045`. Each task starts a fresh sandbox.
 Checks run separately without networking or inference credentials. Create and
