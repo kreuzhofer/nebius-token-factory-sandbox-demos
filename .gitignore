@@ -4,3 +4,10 @@ __pycache__/
 receipt-output*/
 .ruff_cache/
 .scratch/
+
+# Local agent tooling and session notes
+/.agents/
+/HANDOVER.md
+
+# macOS metadata
+.DS_Store
