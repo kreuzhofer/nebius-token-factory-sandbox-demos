@@ -6,7 +6,7 @@ OpenCode runs inside the sandbox with command/file permissions allowed. Networki
 is explicitly enabled for inference and task dependencies.
 
 The demo includes a reusable runtime-image build, an edit-and-test compatibility
-proof, and the Create, Repair, Extend, and deadline examples in [TASKS.md](TASKS.md).
+proof, and the Create, Repair, Extend, and deadline examples.
 
 ## Build the runtime once
 
@@ -67,7 +67,7 @@ reporting. Each stage uses independent inputs and a fresh sandbox.
 Create uploads a CSV and asks the agent to write and execute its summary script.
 The returned archive is unpacked only inside a separate validation sandbox.
 `example.json` records the task outcome and independent checks; the command
-exits nonzero if either fails. See [live results](RESULTS.md).
+exits nonzero if either fails. Run results stay in the local output directory.
 
 Run the complete sequence, stopping at the first failed task or check:
 
@@ -156,21 +156,10 @@ result = run_task(
 )
 ```
 
-## Verified compatibility
+## Runtime compatibility
 
-On 2026-09-16 the `proof` command passed using OpenCode 1.18.31 and
-`Qwen/Qwen3-235B-A22B-Instruct-2507` through Token Factory. Both jobs reused image
-`a485428f-a38c-42a5-9e55-ac216fa5b045`, built by operation
-`01a0ac09-6c1b-723e-82a4-c68420c5305e`.
-
-| Task operation | Helper elapsed | Independent validation operation | Result |
-| --- | --- | --- | --- |
-| `01a0ac12-ea6c-734a-9cb1-b1d15a942561` | 11.638 s | `01a0ac13-1624-7393-b3f1-e5ab13269c7b` | Both tests passed |
-| `01a0ac13-2a88-7213-805e-6ed38cc2a4f9` | 10.216 s | `01a0ac13-511c-74aa-a26d-a716f4b7d255` | Both tests passed |
-
-These are short compatibility runs, not evidence of 30-minute execution or the
-full task ladder. Image availability is scoped to the account and service
-retention. Build a new image when reproducing elsewhere or changing the runtime.
+Image availability is scoped to the account and service retention. Build a new
+image when reproducing elsewhere or changing the runtime.
 
 The pinned CLI's [run command source](https://github.com/anomalyco/opencode/blob/v1.18.31/packages/opencode/src/cli/cmd/run.ts)
 provides JSON events and disables interactive question/plan transitions in

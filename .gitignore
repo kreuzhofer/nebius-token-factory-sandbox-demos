@@ -4,6 +4,8 @@ __pycache__/
 receipt-output*/
 coding-output*/
 coding-runtime*/
+/examples/python/codingagent_demo/RESULTS.md
+/examples/python/codingagent_demo/TASKS.md
 .ruff_cache/
 .scratch/
 

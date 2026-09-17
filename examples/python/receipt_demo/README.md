@@ -238,33 +238,9 @@ timeouts/interrupts attempt operation cancellation; the server timeout is an
 independent bound. Downloaded artifacts are checked against the coordinator's
 byte counts and SHA-256 before a successful local result is published.
 
-## Live verification: September 15, 2026
+## Development
 
-The three-input run used concurrency 2 and produced five sandbox jobs:
-coordinator `01a0a5af-3f01-7608-bc21-76fcd15f0c59`, three receipt workers, and report
-job `01a0a5b0-631c-7792-8770-eb3d3b90c684`. Receipt worker timestamps confirmed two
-workers executing concurrently. The workers completed out of input order; the
-coordinator preserved input order and returned USD 14.75 included, an unreadable
-total flagged, and a corrupt-file error. Its final filesystem was
-`06a89e38-f206-4f22-be0b-c433304a371b`; the downloaded four-page PDF was rendered
-and visually checked.
-
-The full 14-input `demo` run used concurrency 3 and completed all 16 jobs. Worker
-timestamps confirmed a peak of three concurrent receipt workers; the report job
-started after all receipt outcomes were collected. The coordinator returned
-checksummed JSON/PDF with 8 included, 4 flagged, 1 duplicate and 1 corrupt-file
-error. Every synthetic intended outcome, signed amount and currency matched the
-fixture checks. Totals were CHF 54.50, EUR 102.10 and USD 16.93, with public
-receipt limitations: `r02`/`r03` retain interpretation-related arithmetic flags,
-and low-resolution `r01` was read as USD 2.18 rather than USD 2.13. Duplicate `v01` exhausted interpretation
-retries but retained its source fingerprint, allowing exact deduplication against
-`s08`; that failure remains visible in JSON and the appendix. No manual correction
-or rerun of a failed receipt was needed.
-
-The full-run coordinator operation was `01a0a5b2-6269-73a0-97bc-bb00043c1898`, with
-final filesystem `9f23d677-f323-4a02-946d-a374ddc061a6`. The separate report operation
-was `01a0a5b6-63a8-743e-9c3e-bf11ab1d0aee`. The downloaded 21-page PDF was rendered
-and visually checked; `result.json` records all child IDs and timing evidence.
+Use the [shared Python development setup](../README.md#development).
 
 Automated checks cover the concurrency bound,
 out-of-order completion, original transfer, child timeout containment, shared
@@ -274,15 +250,6 @@ retry, coordinator artifact ownership, and the default orchestration command.
 They also cover generic sandbox request mapping, safe transport errors, explicit
 configuration, actual receipt/report worker file handoffs, and imports from the
 uploaded package without local launchers.
-
-After separating the client and example folders, a minimal live run completed
-five jobs with included/flagged/error outcomes and USD 14.75. Coordinator operation:
-`01a0aa51-bd09-754b-98ab-5edd4edf5b21`; final filesystem:
-`a0c47628-4f09-4f98-b5fd-234f550536b6`. The new module command retrieved both reports.
-
-## Development
-
-Use the [shared Python development setup](../README.md#development).
 
 Implementation references: [sandbox file upload](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/files/upload-a-file-to-the-server-the-body-must-be-a-file-content),
 [file download](https://docs.tokenfactory.nebius.com/api-reference/sandboxes/inspect/download-a-file-from-image),
