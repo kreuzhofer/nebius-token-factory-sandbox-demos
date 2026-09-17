@@ -5,6 +5,13 @@ workspace archive, and logs. The local launcher uses Python's standard library.
 OpenCode runs inside the sandbox with command/file permissions allowed. Networking
 is explicitly enabled for inference and task dependencies.
 
+The helper is inspired by the task-and-result workflow in
+[OpenAI's Agents API](https://developers.openai.com/api/docs/guides/agents-api/quickstart#1-run-a-task):
+supply a task and files, let an agent execute it, and retrieve the result.
+This demo implements that experience with a Python helper, OpenCode, Nebius
+Sandboxes, and Token Factory. It has its own interface and does not implement
+OpenAI API compatibility.
+
 The demo includes a reusable runtime-image build, an edit-and-test compatibility
 proof, and the Create, Repair, Extend, and deadline examples.
 

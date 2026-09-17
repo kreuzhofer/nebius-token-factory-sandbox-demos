@@ -1,7 +1,7 @@
 # Issue tracker: GitHub
 
 Issues and specs live in GitHub Issues for
-kreuzhofer/nebius-token-factory-sandbox-demos. Use the gh CLI.
+kreuzhofer/nebius-token-factory-sandboxes-demos. Use the gh CLI.
 
 ## Conventions
 

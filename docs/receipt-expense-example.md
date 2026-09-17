@@ -5,7 +5,7 @@ background; proposals below were superseded by the implemented
 [demo workflow](receipt-demo.md) and [receipt contract](receipt-contract.md).
 The demo now uses three agent roles and has no manual review or model benchmark
 stage. See the [Python guide](../examples/python/README.md) for setup and results.
-The [GitHub wayfinder map](https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos/issues/1)
+The [GitHub wayfinder map](https://github.com/kreuzhofer/nebius-token-factory-sandboxes-demos/issues/1)
 records planning decisions. Original model research is in
 [receipt-vlm-models.md](research/receipt-vlm-models.md).
 

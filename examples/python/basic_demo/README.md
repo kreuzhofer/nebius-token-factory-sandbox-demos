@@ -8,8 +8,8 @@ Run these commands from `examples/python/`. See the [shared development setup](.
 Clone the repository and enter it:
 
 ```sh
-git clone https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos.git
-cd nebius-token-factory-sandbox-demos/examples/python
+git clone https://github.com/kreuzhofer/nebius-token-factory-sandboxes-demos.git
+cd nebius-token-factory-sandboxes-demos/examples/python
 ```
 
 You need a Nebius API key and a Project ID with sandbox access. The agent example

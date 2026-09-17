@@ -1,4 +1,4 @@
-# Nebius Token Factory Sandbox Demos
+# Nebius Token Factory Sandboxes Demos
 
 Examples of building and hosting agents in **Nebius Sandboxes**, with **Token
 Factory** providing inference. The demos show the execution and orchestration
@@ -16,7 +16,12 @@ library; agent runtimes and dependencies run inside the sandboxes.
 | [Receipts](examples/python/receipt_demo/README.md) | A coordinator fans out receipt agents, collects their outcomes, starts a report agent, and returns JSON/PDF or errors | Implemented |
 | [Coding agent](examples/python/codingagent_demo/README.md) | OpenCode executes a task with supplied files in a fresh sandbox, using a reusable runtime image and Token Factory inference | Implemented |
 
-The coding demo includes Create, Repair, and Extend examples, independent
+The coding demo is inspired by the task-and-result workflow in
+[OpenAI's Agents API](https://developers.openai.com/api/docs/guides/agents-api/quickstart#1-run-a-task).
+It provides a Python helper backed by OpenCode, Nebius Sandboxes, and Token Factory;
+its interface is specific to this demo.
+
+It includes Create, Repair, and Extend examples, independent
 correctness checks, and a deterministic timeout probe. Completion and correctness
 are separate outcomes; a failed check stops the full sequence without a retry.
 
@@ -102,7 +107,7 @@ chosen output directory. Use a fresh output directory for each invocation.
 Generated runtime manifests and run artifacts remain local. Do not commit
 credentials or live sandbox, project, image, or operation IDs. Documentation uses
 placeholders; task plans and execution evidence belong in
-[GitHub Issues](https://github.com/kreuzhofer/nebius-token-factory-sandbox-demos/issues).
+[GitHub Issues](https://github.com/kreuzhofer/nebius-token-factory-sandboxes-demos/issues).
 
 ## Repository layout
 
