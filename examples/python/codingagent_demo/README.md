@@ -1,4 +1,4 @@
-# OpenCode in a Nebius sandbox
+# OpenCode on Nebius Token Factory Sandboxes
 
 Run one unattended coding task with Token Factory inference and return its answer,
 workspace archive, and logs. The local launcher uses Python's standard library.
@@ -8,9 +8,9 @@ is explicitly enabled for inference and task dependencies.
 The helper is inspired by the task-and-result workflow in
 [OpenAI's Agents API](https://developers.openai.com/api/docs/guides/agents-api/quickstart#1-run-a-task):
 supply a task and files, let an agent execute it, and retrieve the result.
-This demo implements that experience with a Python helper, OpenCode, Nebius
-Sandboxes, and Token Factory. It has its own interface and does not implement
-OpenAI API compatibility.
+This demo implements that experience with a Python helper, OpenCode,
+Nebius Token Factory Sandboxes, and Token Factory inference. It has its own
+interface and does not implement OpenAI API compatibility.
 
 The demo includes a reusable runtime-image build, an edit-and-test compatibility
 proof, and the Create, Repair, Extend, and deadline examples.
@@ -29,8 +29,8 @@ runs a normal sandbox job that installs Git, ripgrep and OpenCode **1.18.31**.
 The Linux x64 baseline binary comes from the official npm package; its archive
 is checked against a pinned SHA-512 digest and its version is verified.
 
-Nebius preserves that job's filesystem because it is not disposable. The
-resulting image UUID is saved in `coding-runtime/runtime.json`, together with
+The sandbox service preserves that job's filesystem because it is not disposable.
+The resulting image UUID is saved in `coding-runtime/runtime.json`, together with
 the build operation and base image. This is the API's import/run/checkpoint flow,
 not a Dockerfile build service. See the
 [sandbox overview](https://docs.tokenfactory.nebius.com/sandboxes/overview) and

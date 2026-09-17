@@ -1,4 +1,4 @@
-"""Run Python receipt agents across orchestrated Nebius Sandboxes."""
+"""Run Python receipt agents across orchestrated Nebius Token Factory Sandboxes."""
 
 import argparse
 import json

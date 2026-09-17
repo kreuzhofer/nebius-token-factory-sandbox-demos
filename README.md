@@ -1,9 +1,10 @@
 # Nebius Token Factory Sandboxes Demos
 
-Examples of building and hosting agents in **Nebius Sandboxes**, with **Token
-Factory** providing inference. The demos show the execution and orchestration
-process: supply inputs, start sandbox jobs, collect outcomes, and retrieve files.
-They run automatically, including reporting failures and invalid inputs.
+Examples of building and hosting agents in **Nebius Token Factory Sandboxes**,
+with **Nebius Token Factory** providing inference. The demos show the execution
+and orchestration process: supply inputs, start sandbox jobs, collect outcomes,
+and retrieve files. They run automatically, including reporting failures and
+invalid inputs.
 
 ## Available demos
 
@@ -18,8 +19,8 @@ library; agent runtimes and dependencies run inside the sandboxes.
 
 The coding demo is inspired by the task-and-result workflow in
 [OpenAI's Agents API](https://developers.openai.com/api/docs/guides/agents-api/quickstart#1-run-a-task).
-It provides a Python helper backed by OpenCode, Nebius Sandboxes, and Token Factory;
-its interface is specific to this demo.
+It provides a Python helper backed by OpenCode and Nebius Token Factory Sandboxes,
+with Token Factory for inference. Its interface is specific to this demo.
 
 It includes Create, Repair, and Extend examples, independent
 correctness checks, and a deterministic timeout probe. Completion and correctness
@@ -27,8 +28,8 @@ are separate outcomes; a failed check stops the full sequence without a retry.
 
 ## Setup
 
-Use Python 3.10+ locally and credentials with access to Nebius Sandboxes and
-Token Factory inference. From the repository root:
+Use Python 3.10+ locally and credentials with access to Nebius Token Factory
+Sandboxes and Token Factory inference. From the repository root:
 
 ```sh
 cd examples/python

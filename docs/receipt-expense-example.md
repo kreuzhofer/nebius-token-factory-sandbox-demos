@@ -16,7 +16,8 @@ agent using a Token Factory vision-language model (VLM), produce structured
 JSON documents, and hand them to a reconciliation agent. Produce one final PDF
 containing the expense summary and every parsed receipt in an appendix.
 
-Both agents execute inside a Nebius sandbox and call Token Factory inference.
+Both agents execute in Nebius Token Factory Sandboxes and call Token Factory
+inference.
 The same task, fixtures, schemas, prompts, and acceptance checks apply to all
 planned languages and SDKs. Preserve the existing HTTPS example as a baseline.
 

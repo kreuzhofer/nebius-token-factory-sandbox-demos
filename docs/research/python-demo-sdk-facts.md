@@ -35,7 +35,7 @@ the documented framework surface without a multi-agent framework or external
 tool server. That fit is an inference from the API, not an implemented workflow.
 [Pydantic AI agent API](https://pydantic.dev/docs/ai/api/pydantic-ai/agent/)
 
-## Nebius Sandboxes execution and files
+## Nebius Token Factory Sandboxes execution and files
 
 The official ConTree SDK README demonstrates choosing an image, executing a
 command with `run()`, supplying input files through
@@ -59,8 +59,8 @@ it is not a fresh runtime inspection of the installed SDK.
 ## Smallest proposed design
 
 Recommendation, subject to the live design discussion: a local launcher sends
-the receipts and starts one Python agent process in one Nebius sandbox. The
-agent calls Token Factory and uses ordinary Python tools to extract receipts,
+the receipts and starts one Python agent process in a sandbox hosted by Nebius
+Token Factory Sandboxes. The agent calls Token Factory and uses ordinary Python tools to extract receipts,
 reconcile expenses, and generate PDF plus JSON. Retrieval happens before the
 result is discarded. Use deterministic arithmetic and PDF generation; the
 model supplies interpretation and tool decisions. Flagged items are final

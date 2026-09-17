@@ -20,7 +20,7 @@ def receipt_pdf(spec, hide_merchant=False):
     stream = io.BytesIO()
     pdf = canvas.Canvas(stream, pagesize=(WIDTH, HEIGHT), invariant=1, pageCompression=1)
     pdf.setTitle("Synthetic demo receipt " + spec["id"])
-    pdf.setAuthor("Nebius sandbox demo project")
+    pdf.setAuthor("Nebius Token Factory Sandboxes demo project")
     for number, lines in enumerate(spec["pages"], start=1):
         pdf.setFont("Courier-Bold", 10)
         pdf.drawCentredString(WIDTH / 2, HEIGHT - 25, "SYNTHETIC DEMO - NOT A REAL PURCHASE")

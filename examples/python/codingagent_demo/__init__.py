@@ -1,4 +1,4 @@
-"""Run an unattended coding agent in a Nebius sandbox."""
+"""Run an unattended coding agent on Nebius Token Factory Sandboxes."""
 
 from .helper import AgentConfig, run_task
 from .runtime import build_runtime

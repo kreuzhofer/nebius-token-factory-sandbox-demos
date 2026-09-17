@@ -1,7 +1,8 @@
 # Shared demo receipts
 
-Small inputs for demonstrating agents on Nebius Sandboxes with Token Factory
-inference. This is not a model benchmark or a human-review workflow.
+Small inputs for demonstrating agents on Nebius Token Factory Sandboxes with
+Token Factory inference. This is not a model benchmark or a human-review
+workflow.
 
 There are **12 distinct receipts and 6 variants**. Files are checked in, so normal
 demo use does not need Wikimedia access or fixture-generation packages. Every

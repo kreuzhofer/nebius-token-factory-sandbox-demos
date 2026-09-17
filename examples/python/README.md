@@ -1,8 +1,8 @@
-# Python sandbox examples
+# Python examples for Nebius Token Factory Sandboxes
 
 Each example owns its launch command, agents, dependencies, documentation, and
-tests. The examples share a standard-library Nebius sandbox client and local
-configuration loading.
+tests. The examples share a standard-library client for Nebius Token Factory
+Sandboxes and local configuration loading.
 
 | Example | Run from this directory | Guide |
 | --- | --- | --- |

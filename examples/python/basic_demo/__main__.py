@@ -1,4 +1,4 @@
-"""Configure and run the small Nebius sandbox examples."""
+"""Configure and run the small Nebius Token Factory Sandboxes examples."""
 
 import argparse
 import getpass

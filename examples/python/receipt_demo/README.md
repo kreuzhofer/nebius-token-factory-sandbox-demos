@@ -1,8 +1,9 @@
 # Receipt expense-report demo
 
-This example demonstrates hosting agents in sandboxes and using Token Factory for
-inference. One command produces JSON and a PDF with totals and original receipts.
-Flags, duplicates, and document errors are finished automated outcomes.
+This example demonstrates hosting agents in Nebius Token Factory Sandboxes and
+using Token Factory for inference. One command produces JSON and a PDF with
+totals and original receipts. Flags, duplicates, and document errors are
+finished automated outcomes.
 
 The commands below run from the Python directory. From the repository root, run
 `cd examples/python`. Configuration created by `python3 -m basic_demo configure` lives in
@@ -15,8 +16,9 @@ See the shared [workflow](../../../docs/receipt-demo.md),
 
 ## Run it
 
-Use Python 3.10+ for the standard-library launcher, with a Nebius key and Project ID
-that have sandbox access. The receipt workflow itself runs on Python 3.12.
+Use Python 3.10+ for the standard-library launcher, with an API key and Project
+ID that have access to Nebius Token Factory Sandboxes. The receipt workflow
+itself runs on Python 3.12.
 
 ```sh
 python3 -m basic_demo configure

@@ -1,4 +1,4 @@
-"""Nebius sandbox operations, independent of any demo or agent workflow.
+"""Nebius Token Factory Sandboxes operations, independent of any demo or agent workflow.
 
 Submission is never retried. A successful operation does not imply a successful
 process: callers inspect execution_result() before consuming execution output.

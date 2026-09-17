@@ -1,4 +1,4 @@
-# Basic sandbox examples
+# Basic examples for Nebius Token Factory Sandboxes
 
 Run these commands from `examples/python/`. See the [shared development setup](../README.md#development).
 
@@ -12,8 +12,9 @@ git clone https://github.com/kreuzhofer/nebius-token-factory-sandboxes-demos.git
 cd nebius-token-factory-sandboxes-demos/examples/python
 ```
 
-You need a Nebius API key and a Project ID with sandbox access. The agent example
-also needs access to a Token Factory model that supports tool calling.
+You need an API key and a Project ID with access to Nebius Token Factory
+Sandboxes. The agent example also needs access to a Token Factory model that
+supports tool calling.
 
 
 ```sh

@@ -1,8 +1,9 @@
 # Receipt-to-expense-report demo
 
-This demo shows automated agents hosted in Nebius Sandboxes, with inference through
-Token Factory. Each language implements the full workflow and generates its own
-JSON and PDF. See the [examples index](../README.md#examples) for setup and commands.
+This demo shows automated agents hosted in Nebius Token Factory Sandboxes, with
+inference through Token Factory. Each language implements the full workflow and
+generates its own JSON and PDF. See the [examples index](../README.md#examples)
+for setup and commands.
 
 ## Workflow
 
